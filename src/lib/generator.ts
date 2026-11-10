@@ -189,9 +189,11 @@ export function formatEquationParts(card: TaskCard): EquationParts {
         left: `${a} + ${b} =`,
         right: '',
         typeBadge:
-          c <= 10
-            ? `Plus bis 10 · +${b}`
-            : `Zehnerübergang · +${b}`,
+          c === 10
+            ? `❤️ Verliebte Zahlen · +${b}`
+            : c <= 10
+              ? `Plus bis 10 · +${b}`
+              : `Zehnerübergang · +${b}`,
         fullEquationWithSolution: `${a} + ${b} = ${c}`,
         hintText: getAdditionHint(a, b, c),
       };
@@ -200,17 +202,22 @@ export function formatEquationParts(card: TaskCard): EquationParts {
         left: `${c} − ${b} =`,
         right: '',
         typeBadge:
-          c > 10 && a < 10
-            ? `Minus über die 10 · −${b}`
-            : `Minus-Umkehraufgabe · −${b}`,
+          c === 10
+            ? `❤️ Verliebte Zahlen · −${b}`
+            : c > 10 && a < 10
+              ? `Minus über die 10 · −${b}`
+              : `Minus-Umkehraufgabe · −${b}`,
         fullEquationWithSolution: `${c} − ${b} = ${a}`,
-        hintText: `Umkehraufgabe: Denn ${a} + ${b} = ${c}`,
+        hintText:
+          c === 10
+            ? `Verliebte Zahlen: Denn ${a} + ${b} = 10`
+            : `Umkehraufgabe: Denn ${a} + ${b} = ${c}`,
       };
     case 'gap_add_b':
       return {
         left: `${a} +`,
         right: `= ${c}`,
-        typeBadge: c === 10 ? `Zehnerfreunde · Lücke` : `Plus-Lücke · bis ${c}`,
+        typeBadge: c === 10 ? `❤️ Verliebte Zahlen · Lücke` : `Plus-Lücke · bis ${c}`,
         fullEquationWithSolution: `${a} + ${b} = ${c}`,
         hintText: `Ergänzen: Von ${a} bis ${c} fehlen ${b} (${c} − ${a} = ${b})`,
       };
@@ -218,7 +225,7 @@ export function formatEquationParts(card: TaskCard): EquationParts {
       return {
         left: '',
         right: `+ ${b} = ${c}`,
-        typeBadge: c === 10 ? `Zehnerfreunde · Lücke` : `Plus-Lücke · +${b}`,
+        typeBadge: c === 10 ? `❤️ Verliebte Zahlen · Lücke` : `Plus-Lücke · +${b}`,
         fullEquationWithSolution: `${a} + ${b} = ${c}`,
         hintText: `Umkehrtrick: Rechne ${c} − ${b} = ${a}`,
       };

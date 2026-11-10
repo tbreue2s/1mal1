@@ -104,6 +104,7 @@
       return `${stats.selectedRows.length} gewählt`;
     }
     const f = stats.plusMinusFocus ?? 'up_to_10';
+    if (f === 'number_bonds_10') return 'Verliebte Zahlen ❤️';
     if (f === 'up_to_10') return 'Bis 10';
     if (f === 'over_10') return 'Zehnerübergang';
     if (f === 'doubles') return 'Verdoppeln';
@@ -197,7 +198,7 @@
             {#if gameMode === 'mult'}
               Übe gezielt einzelne 1×1-Reihen (z.&nbsp;B. nur die 2er-, 5er- und 10er-Reihe).
             {:else}
-              Übe gezielt Zerlegungen bis 10, Zehnerübergänge, Verdoppeln oder einzelne Plus-Reihen.
+              Übe gezielt Verliebte Zahlen ❤️, Aufgaben bis 10, Zehnerübergänge, Verdoppeln oder Plus-Reihen.
             {/if}
           </p>
         </div>
@@ -261,12 +262,23 @@
           </div>
         </div>
       {:else}
-        <!-- Zahlenheld: Didaktische Fokus-Bereiche (Zerlegungen bis 10, Zehnerübergang, Verdoppeln, Reihen) -->
+        <!-- Zahlenheld: Didaktische Fokus-Bereiche (Verliebte Zahlen, Bis 10, Zehnerübergang, Verdoppeln, Reihen) -->
         {@const pmFocus = stats.plusMinusFocus ?? 'up_to_10'}
         <div class="rows-selector-box">
           <span class="rows-label">Wähle deinen Zahlenheld-Schwerpunkt:</span>
 
           <div class="pm-focus-grid">
+            <button
+              type="button"
+              class="pm-focus-card pm-focus-wide"
+              class:selected={pmFocus === 'number_bonds_10'}
+              onclick={() => setPlusMinusFocus('number_bonds_10')}
+            >
+              <span class="pm-f-icon">❤️</span>
+              <span class="pm-f-title">Verliebte Zahlen (Immer 10)</span>
+              <span class="pm-f-sub">Partnerzahlen zur 10: 6 + 4 = 10 · 7 + ? = 10 · 10 − 3 = 7</span>
+            </button>
+
             <button
               type="button"
               class="pm-focus-card"
@@ -275,7 +287,7 @@
             >
               <span class="pm-f-icon">🌱</span>
               <span class="pm-f-title">Bis 10 &amp; Zerlegungen</span>
-              <span class="pm-f-sub">z. B. 4 + 3 = 7 · 6 + 4 = 10</span>
+              <span class="pm-f-sub">Zahlenraum bis 10 (z. B. 4 + 3 = 7)</span>
             </button>
 
             <button
@@ -296,8 +308,8 @@
               onclick={() => setPlusMinusFocus('doubles')}
             >
               <span class="pm-f-icon">👯</span>
-              <span class="pm-f-title">Verdoppeln &amp; 10er</span>
-              <span class="pm-f-sub">6 + 6, 7 + 8 &amp; Zehnerfreunde</span>
+              <span class="pm-f-title">Verdoppeln &amp; Nachbarn</span>
+              <span class="pm-f-sub">z. B. 6 + 6 = 12 · 6 + 7 = 13</span>
             </button>
 
             <button
@@ -661,6 +673,10 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
+  }
+
+  .pm-focus-wide {
+    grid-column: 1 / -1;
   }
 
   .pm-focus-card {

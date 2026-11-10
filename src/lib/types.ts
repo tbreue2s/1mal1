@@ -39,7 +39,12 @@ export type LearningMode = 'daily' | 'rows';
 
 export type TypeFilter = 'mult_only' | 'all_types';
 
-export type PlusMinusFocus = 'up_to_10' | 'over_10' | 'doubles' | 'rows';
+export type PlusMinusFocus =
+  | 'number_bonds_10'
+  | 'up_to_10'
+  | 'over_10'
+  | 'doubles'
+  | 'rows';
 
 export type MasteryStatus = 'new' | 'learning' | 'mastered';
 

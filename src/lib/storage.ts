@@ -122,6 +122,7 @@ function hydrateStats(
       : defaults.selectedRows;
 
   const validFocus =
+    parsed.plusMinusFocus === 'number_bonds_10' ||
     parsed.plusMinusFocus === 'up_to_10' ||
     parsed.plusMinusFocus === 'over_10' ||
     parsed.plusMinusFocus === 'doubles' ||
@@ -506,7 +507,9 @@ export function buildSessionQueue(
     if (gameMode === 'mult') {
       candidates = candidates.filter((card) => activeRows.includes(card.row));
     } else {
-      if (plusMinusFocus === 'up_to_10') {
+      if (plusMinusFocus === 'number_bonds_10') {
+        candidates = candidates.filter((card) => card.fact[2] === 10);
+      } else if (plusMinusFocus === 'up_to_10') {
         candidates = candidates.filter((card) => card.fact[2] <= 10);
       } else if (plusMinusFocus === 'over_10') {
         candidates = candidates.filter((card) => card.fact[2] > 10);
@@ -514,8 +517,7 @@ export function buildSessionQueue(
         candidates = candidates.filter(
           (card) =>
             card.fact[0] === card.fact[1] ||
-            Math.abs(card.fact[0] - card.fact[1]) === 1 ||
-            card.fact[2] === 10
+            Math.abs(card.fact[0] - card.fact[1]) === 1
         );
       } else {
         candidates = candidates.filter((card) => activeRows.includes(card.row));
