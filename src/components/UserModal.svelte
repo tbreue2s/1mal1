@@ -11,6 +11,7 @@
     logoVariant: LogoVariantId;
     onSelectProfile: (id: string) => void;
     onCreateProfile: (name: string, avatar: string) => void;
+    onUpdateProfile: (id: string, name: string, avatar: string) => void;
     onDeleteProfile: (id: string) => void;
     onResetProfile: (id: string) => void;
     onSetManualStreak: (id: string, streakDays: number) => void;
@@ -24,6 +25,7 @@
     logoVariant,
     onSelectProfile,
     onCreateProfile,
+    onUpdateProfile,
     onDeleteProfile,
     onResetProfile,
     onSetManualStreak,
@@ -34,7 +36,10 @@
   let newName = $state('');
   let selectedAvatar = $state(AVAILABLE_AVATARS[0]);
 
-  // Zustand für manuelles Streak-Bearbeiten, Zurücksetzen & Löschen pro Profil
+  // Zustand für Name/Avatar bearbeiten, manuelles Streak-Bearbeiten, Zurücksetzen & Löschen pro Profil
+  let editingNameProfileId = $state<string | null>(null);
+  let editNameInput = $state('');
+  let editAvatarInput = $state(AVAILABLE_AVATARS[0]);
   let editingStreakProfileId = $state<string | null>(null);
   let manualStreakInput = $state<string>('0');
   let confirmResetId = $state<string | null>(null);
@@ -67,9 +72,26 @@
     selectedAvatar = AVAILABLE_AVATARS[nextIdx];
   }
 
+  function openNameEditor(profile: UserProfile) {
+    editingNameProfileId = profile.id;
+    editNameInput = profile.name;
+    editAvatarInput = profile.avatar;
+    editingStreakProfileId = null;
+    confirmResetId = null;
+    confirmDeleteId = null;
+  }
+
+  function saveProfileEdit(profileId: string) {
+    const trimmed = editNameInput.trim();
+    if (!trimmed) return;
+    onUpdateProfile(profileId, trimmed, editAvatarInput);
+    editingNameProfileId = null;
+  }
+
   function openStreakEditor(profile: UserProfile) {
     editingStreakProfileId = profile.id;
     manualStreakInput = String(profile.stats.streakDays);
+    editingNameProfileId = null;
     confirmResetId = null;
     confirmDeleteId = null;
   }
@@ -132,6 +154,18 @@
             <div class="profile-actions">
               <button
                 type="button"
+                class="small-action-btn edit-name-btn"
+                onclick={() =>
+                  editingNameProfileId === prof.id
+                    ? (editingNameProfileId = null)
+                    : openNameEditor(prof)}
+                title="Spielername oder Figur ändern"
+              >
+                ✏️ Name
+              </button>
+
+              <button
+                type="button"
                 class="small-action-btn streak-edit-btn"
                 onclick={() =>
                   editingStreakProfileId === prof.id
@@ -149,6 +183,7 @@
                   confirmResetId = confirmResetId === prof.id ? null : prof.id;
                   confirmDeleteId = null;
                   editingStreakProfileId = null;
+                  editingNameProfileId = null;
                 }}
                 title="Lernstand für {prof.name} zurücksetzen"
               >
@@ -162,6 +197,7 @@
                   confirmDeleteId = confirmDeleteId === prof.id ? null : prof.id;
                   confirmResetId = null;
                   editingStreakProfileId = null;
+                  editingNameProfileId = null;
                 }}
                 title="Profil {prof.name} löschen"
               >
@@ -169,6 +205,52 @@
               </button>
             </div>
           </div>
+
+          <!-- Spielername & Figur bearbeiten -->
+          {#if editingNameProfileId === prof.id}
+            <div class="inline-panel edit-profile-panel">
+              <label class="streak-label" for="name-edit-input-{prof.id}">
+                ✏️ Name &amp; Figur für <strong>{prof.name}</strong> anpassen:
+              </label>
+              <input
+                id="name-edit-input-{prof.id}"
+                type="text"
+                maxlength="24"
+                class="name-input"
+                bind:value={editNameInput}
+              />
+              <div class="avatar-grid" role="group" aria-label="Neue Figur wählen">
+                {#each AVAILABLE_AVATARS as av (av)}
+                  <button
+                    type="button"
+                    class="avatar-choice"
+                    class:selected={editAvatarInput === av}
+                    onclick={() => (editAvatarInput = av)}
+                    aria-label="Figur {av}"
+                  >
+                    {av}
+                  </button>
+                {/each}
+              </div>
+              <div class="inline-btn-group">
+                <button
+                  type="button"
+                  class="save-profile-btn"
+                  disabled={editNameInput.trim().length === 0}
+                  onclick={() => saveProfileEdit(prof.id)}
+                >
+                  Änderung speichern
+                </button>
+                <button
+                  type="button"
+                  class="cancel-inline-btn"
+                  onclick={() => (editingNameProfileId = null)}
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          {/if}
 
           <!-- Manuelle Streak-Eingabe -->
           {#if editingStreakProfileId === prof.id}
@@ -495,6 +577,12 @@
     font-family: inherit;
   }
 
+  .edit-name-btn {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+    color: #3730a3;
+  }
+
   .streak-edit-btn {
     background: #ffedd5;
     border-color: #fed7aa;
@@ -519,6 +607,29 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+
+  .edit-profile-panel {
+    background: #f5f7ff;
+    border: 1.5px solid #a5b4fc;
+    color: #1e1b4b;
+  }
+
+  .save-profile-btn {
+    background: #4f46e5;
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-weight: 800;
+    font-size: 0.82rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .save-profile-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 
   .streak-panel {

@@ -286,3 +286,4 @@ export function applyDynamicHomeScreenIcon(variant: LogoVariantId): void {
   };
   img.src = svgDataUrl;
 }
+

@@ -35,6 +35,8 @@
   let logoVariant = $state<LogoVariantId>(loadLogoVariant());
   let currentScreen = $state<ActiveScreen>('home');
   let activeSessionQueue = $state<TaskCard[]>([]);
+  let showUserDropdown = $state(false);
+  let dropdownWrapEl = $state<HTMLDivElement | null>(null);
 
   let activeProfile = $derived(
     profiles.find((p) => p.id === activeProfileId) ?? profiles[0]
@@ -69,6 +71,7 @@
   }
 
   function startSession() {
+    showUserDropdown = false;
     activeSessionQueue = buildSessionQueue(
       cards,
       stats.learningMode,
@@ -80,6 +83,7 @@
   }
 
   function startSingleRowSession(row: number) {
+    showUserDropdown = false;
     updateSettings({
       learningMode: 'rows',
       selectedRows: [row],
@@ -132,6 +136,30 @@
 
   onMount(() => {
     applyDynamicHomeScreenIcon(logoVariant);
+
+    function handleOutsideClick(event: MouseEvent) {
+      if (
+        showUserDropdown &&
+        dropdownWrapEl &&
+        event.target instanceof Node &&
+        !dropdownWrapEl.contains(event.target)
+      ) {
+        showUserDropdown = false;
+      }
+    }
+
+    function handleKeydown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && showUserDropdown) {
+        showUserDropdown = false;
+      }
+    }
+
+    window.addEventListener('click', handleOutsideClick);
+    window.addEventListener('keydown', handleKeydown);
+    return () => {
+      window.removeEventListener('click', handleOutsideClick);
+      window.removeEventListener('keydown', handleKeydown);
+    };
   });
 
   function handleSelectProfile(id: string) {
@@ -145,6 +173,7 @@
         applyDynamicHomeScreenIcon(preferred);
       }
     }
+    showUserDropdown = false;
   }
 
   function handleCreateProfile(name: string, avatar: string) {
@@ -158,6 +187,26 @@
     }
     const next = [...profiles, created];
     persistAll(next, created.id);
+  }
+
+  function handleUpdateProfile(id: string, name: string, avatar: string) {
+    const matchedLogo = avatarToLogo(avatar);
+    const next = profiles.map((p) => {
+      if (p.id !== id) return p;
+      return {
+        ...p,
+        name: name.trim() || p.name,
+        avatar,
+        logoVariant: matchedLogo ?? p.logoVariant,
+      };
+    });
+    persistAll(next, activeProfileId);
+
+    if (id === activeProfileId && matchedLogo && matchedLogo !== logoVariant) {
+      logoVariant = matchedLogo;
+      saveLogoVariant(matchedLogo);
+      applyDynamicHomeScreenIcon(matchedLogo);
+    }
   }
 
   function handleDeleteProfile(id: string) {
@@ -195,12 +244,15 @@
 </script>
 
 <div class="app-shell">
-  <!-- App-Header mit neuem Logo, Benutzer-Umschalter, Tages-Streak, Sternchen, Matrix & Ton -->
+  <!-- App-Header mit Logo, Spieler-Dropdown, Tages-Streak, Sternchen, Matrix & Ton -->
   <header class="app-header">
     <button
       type="button"
       class="brand-btn"
-      onclick={() => (currentScreen = 'home')}
+      onclick={() => {
+        showUserDropdown = false;
+        currentScreen = 'home';
+      }}
       title="Zur Startseite"
     >
       <BrandLogo variant={logoVariant} size={40} />
@@ -211,22 +263,71 @@
     </button>
 
     <div class="header-badges">
-      <button
-        type="button"
-        class="user-pill-btn"
-        class:active={currentScreen === 'users'}
-        onclick={() =>
-          (currentScreen = currentScreen === 'users' ? 'home' : 'users')}
-        title="Benutzer wechseln oder verwalten ({activeProfile.name})"
-      >
-        <span class="u-avatar">{activeProfile.avatar}</span>
-        <span class="u-name">{activeProfile.name}</span>
-      </button>
+      <!-- Spieler-Dropdown -->
+      <div class="user-dropdown-wrap" bind:this={dropdownWrapEl}>
+        <button
+          type="button"
+          class="user-pill-btn"
+          class:active={showUserDropdown || currentScreen === 'users'}
+          aria-haspopup="true"
+          aria-expanded={showUserDropdown}
+          onclick={() => (showUserDropdown = !showUserDropdown)}
+          title="Spieler wechseln ({activeProfile.name})"
+        >
+          <span class="u-avatar">{activeProfile.avatar}</span>
+          <span class="u-name">{activeProfile.name}</span>
+          <span class="u-caret" aria-hidden="true">▾</span>
+        </button>
+
+        {#if showUserDropdown}
+          <div class="user-dropdown-menu" role="menu" aria-label="Spieler auswählen">
+            <div class="dropdown-section-label">Spieler wechseln</div>
+            {#each profiles as prof (prof.id)}
+              {@const isCurrent = prof.id === activeProfile.id}
+              <button
+                type="button"
+                role="menuitem"
+                class="dropdown-user-item"
+                class:current={isCurrent}
+                onclick={() => handleSelectProfile(prof.id)}
+              >
+                <span class="dd-avatar">{prof.avatar}</span>
+                <span class="dd-info">
+                  <span class="dd-name">{prof.name}</span>
+                  <span class="dd-meta">
+                    🔥 {prof.stats.streakDays} · ⭐ {prof.stats.stars}
+                  </span>
+                </span>
+                {#if isCurrent}
+                  <span class="dd-check" aria-hidden="true">✓</span>
+                {/if}
+              </button>
+            {/each}
+
+            <div class="dropdown-divider" role="separator"></div>
+
+            <button
+              type="button"
+              role="menuitem"
+              class="dropdown-manage-btn"
+              onclick={() => {
+                showUserDropdown = false;
+                currentScreen = 'users';
+              }}
+            >
+              <span>⚙️ Benutzerverwaltung</span>
+            </button>
+          </div>
+        {/if}
+      </div>
 
       <button
         type="button"
         class="reward-pill streak-pill"
-        onclick={() => (currentScreen = 'users')}
+        onclick={() => {
+          showUserDropdown = false;
+          currentScreen = 'users';
+        }}
         title="Tages-Streak: {stats.streakDays} {stats.streakDays === 1 ? 'Tag' : 'Tage'} (Antippen zum Bearbeiten)"
       >
         <span aria-hidden="true">🔥</span>
@@ -245,8 +346,10 @@
         type="button"
         class="icon-nav-btn"
         class:active={currentScreen === 'matrix'}
-        onclick={() =>
-          (currentScreen = currentScreen === 'matrix' ? 'home' : 'matrix')}
+        onclick={() => {
+          showUserDropdown = false;
+          currentScreen = currentScreen === 'matrix' ? 'home' : 'matrix';
+        }}
         aria-label="10 mal 10 Matrix anzeigen"
         title="1×1-Matrix (Fortschritt)"
       >
@@ -306,6 +409,7 @@
         {logoVariant}
         onSelectProfile={handleSelectProfile}
         onCreateProfile={handleCreateProfile}
+        onUpdateProfile={handleUpdateProfile}
         onDeleteProfile={handleDeleteProfile}
         onResetProfile={handleResetProfile}
         onSetManualStreak={handleSetManualStreak}
@@ -322,7 +426,10 @@
     <button
       type="button"
       class="footer-link"
-      onclick={() => (currentScreen = 'users')}
+      onclick={() => {
+        showUserDropdown = false;
+        currentScreen = 'users';
+      }}
     >
       👥 Benutzer &amp; Streak ({activeProfile.name})
     </button>
@@ -330,7 +437,10 @@
     <button
       type="button"
       class="footer-link"
-      onclick={() => (currentScreen = 'legal')}
+      onclick={() => {
+        showUserDropdown = false;
+        currentScreen = 'legal';
+      }}
     >
       Impressum &amp; Datenschutz
     </button>
@@ -361,6 +471,8 @@
     margin-bottom: 14px;
     box-shadow: 0 4px 14px rgba(79, 70, 229, 0.08);
     flex-wrap: wrap;
+    position: relative;
+    z-index: 30;
   }
 
   .brand-btn {
@@ -400,6 +512,10 @@
     flex-wrap: wrap;
   }
 
+  .user-dropdown-wrap {
+    position: relative;
+  }
+
   .user-pill-btn {
     display: inline-flex;
     align-items: center;
@@ -413,7 +529,7 @@
     font-size: 0.8rem;
     font-weight: 800;
     cursor: pointer;
-    max-width: 125px;
+    max-width: 138px;
   }
 
   .user-pill-btn.active,
@@ -426,6 +542,121 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .u-caret {
+    font-size: 0.7rem;
+    color: #4f46e5;
+    margin-left: 1px;
+  }
+
+  .user-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 215px;
+    background: #ffffff;
+    border: 2px solid #c7d2fe;
+    border-radius: 16px;
+    box-shadow: 0 10px 28px rgba(30, 27, 75, 0.18);
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 100;
+  }
+
+  .dropdown-section-label {
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    padding: 4px 8px 2px;
+  }
+
+  .dropdown-user-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 9px;
+    border: none;
+    border-radius: 11px;
+    background: transparent;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.12s ease;
+  }
+
+  .dropdown-user-item:hover {
+    background: #f1f5f9;
+  }
+
+  .dropdown-user-item.current {
+    background: #eef2ff;
+  }
+
+  .dd-avatar {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  .dd-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .dd-name {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #1e1b4b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dd-meta {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #64748b;
+  }
+
+  .dd-check {
+    font-size: 0.9rem;
+    font-weight: 900;
+    color: #4f46e5;
+  }
+
+  .dropdown-divider {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 4px 2px;
+  }
+
+  .dropdown-manage-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 11px;
+    background: transparent;
+    color: #4338ca;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 800;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.12s ease;
+  }
+
+  .dropdown-manage-btn:hover {
+    background: #eef2ff;
   }
 
   .reward-pill {

@@ -18,15 +18,15 @@ const LOGO_VARIANT_KEY = '1mal1_logo_variant_v1';
 export const AVAILABLE_AVATARS = [
   '🐧',
   '🦦',
-  '🦉',
-  '🚀',
   '🦊',
   '🦁',
   '🐼',
+  '🦉',
   '🦄',
+  '🚀',
   '🦖',
   '🐯',
-  '🐸',
+  '🐨',
   '⭐',
 ];
 
