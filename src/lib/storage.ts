@@ -16,17 +16,17 @@ const ACTIVE_PROFILE_ID_KEY = '1mal1_active_profile_v2';
 const LOGO_VARIANT_KEY = '1mal1_logo_variant_v1';
 
 export const AVAILABLE_AVATARS = [
+  '🐧',
+  '🦦',
+  '🦉',
+  '🚀',
   '🦊',
   '🦁',
   '🐼',
-  '🦉',
   '🦄',
-  '🚀',
   '🦖',
   '🐯',
   '🐸',
-  '🐨',
-  '🐙',
   '⭐',
 ];
 
@@ -190,6 +190,7 @@ export function loadProfilesAndActiveId(): {
             typeof p.avatar === 'string' && p.avatar
               ? p.avatar
               : AVAILABLE_AVATARS[idx % AVAILABLE_AVATARS.length],
+          logoVariant: p.logoVariant,
           createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
           stats: hydrateStats(p.stats),
           cards: hydrateCards(p.cards),
@@ -287,18 +288,18 @@ export function resetProfileData(profile: UserProfile): UserProfile {
 }
 
 export function loadLogoVariant(): LogoVariantId {
-  if (typeof window === 'undefined') return 'owl';
+  if (typeof window === 'undefined') return 'penguin';
   const saved = window.localStorage.getItem(LOGO_VARIANT_KEY);
   if (
-    saved === 'blocks' ||
+    saved === 'penguin' ||
+    saved === 'otter' ||
     saved === 'owl' ||
     saved === 'rocket' ||
-    saved === 'trophy' ||
     saved === 'fox'
   ) {
     return saved;
   }
-  return 'owl';
+  return 'penguin';
 }
 
 export function saveLogoVariant(variant: LogoVariantId): void {

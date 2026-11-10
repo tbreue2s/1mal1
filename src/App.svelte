@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import BrandLogo from './components/BrandLogo.svelte';
   import HomeView from './components/HomeView.svelte';
   import LegalView from './components/LegalView.svelte';
@@ -6,6 +7,7 @@
   import PracticeView from './components/PracticeView.svelte';
   import UserModal from './components/UserModal.svelte';
   import { playKeyTap } from './lib/audio';
+  import { applyDynamicHomeScreenIcon } from './lib/logos';
   import {
     buildSessionQueue,
     createNewProfile,
@@ -119,14 +121,41 @@
     });
   }
 
+  function avatarToLogo(avatar: string): LogoVariantId | null {
+    if (avatar === '🐧') return 'penguin';
+    if (avatar === '🦦') return 'otter';
+    if (avatar === '🦉') return 'owl';
+    if (avatar === '🚀') return 'rocket';
+    if (avatar === '🦊') return 'fox';
+    return null;
+  }
+
+  onMount(() => {
+    applyDynamicHomeScreenIcon(logoVariant);
+  });
+
   function handleSelectProfile(id: string) {
-    if (profiles.some((p) => p.id === id)) {
+    const target = profiles.find((p) => p.id === id);
+    if (target) {
       persistAll(profiles, id);
+      const preferred = target.logoVariant ?? avatarToLogo(target.avatar);
+      if (preferred && preferred !== logoVariant) {
+        logoVariant = preferred;
+        saveLogoVariant(preferred);
+        applyDynamicHomeScreenIcon(preferred);
+      }
     }
   }
 
   function handleCreateProfile(name: string, avatar: string) {
     const created = createNewProfile(name, avatar);
+    const matchedLogo = avatarToLogo(avatar);
+    if (matchedLogo) {
+      created.logoVariant = matchedLogo;
+      logoVariant = matchedLogo;
+      saveLogoVariant(matchedLogo);
+      applyDynamicHomeScreenIcon(matchedLogo);
+    }
     const next = [...profiles, created];
     persistAll(next, created.id);
   }
@@ -134,7 +163,7 @@
   function handleDeleteProfile(id: string) {
     const remaining = profiles.filter((p) => p.id !== id);
     if (remaining.length === 0) {
-      const fresh = createNewProfile('Spieler 1', '🦊');
+      const fresh = createNewProfile('Spieler 1', '🐧');
       persistAll([fresh], fresh.id);
     } else {
       const nextActive =
@@ -160,6 +189,8 @@
   function handleSelectLogo(variant: LogoVariantId) {
     logoVariant = variant;
     saveLogoVariant(variant);
+    updateActiveProfile((prof) => ({ ...prof, logoVariant: variant }));
+    applyDynamicHomeScreenIcon(variant);
   }
 </script>
 

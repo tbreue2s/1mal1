@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { LOGO_OPTIONS } from '../lib/logos';
   import { getMatrixCellStatus } from '../lib/sm2';
   import { AVAILABLE_AVATARS } from '../lib/storage';
   import type { LogoVariantId, UserProfile } from '../lib/types';
@@ -39,13 +40,7 @@
   let confirmResetId = $state<string | null>(null);
   let confirmDeleteId = $state<string | null>(null);
 
-  const logoOptions: Array<{ id: LogoVariantId; title: string; subtitle: string }> = [
-    { id: 'owl', title: '1. Mathe-Eule', subtitle: 'Mit Krone & 1×1-Schild' },
-    { id: 'blocks', title: '2. 3D-Bauklötze', subtitle: 'Bunte Rechenwürfel' },
-    { id: 'rocket', title: '3. Mathe-Rakete', subtitle: 'Start ins Zahlen-All' },
-    { id: 'trophy', title: '4. Meister-Pokal', subtitle: 'Goldener Siegerkelch' },
-    { id: 'fox', title: '5. Schlauer Fuchs', subtitle: 'Freundliches Maskottchen' },
-  ];
+  const logoOptions = LOGO_OPTIONS;
 
   function countMasteredFacts(profile: UserProfile): number {
     let mastered = 0;
@@ -312,11 +307,11 @@
     </form>
   </div>
 
-  <!-- Logo-Auswahl (5 Vorschläge) -->
+  <!-- Logo-Auswahl für App & Startbildschirm -->
   <div class="section-card">
-    <h3 class="card-heading">App-Logo auswählen (5 Vorschläge)</h3>
+    <h3 class="card-heading">App- &amp; Startbildschirm-Logo wählen</h3>
     <p class="subtitle" style="margin-bottom: 10px;">
-      Tippe auf ein Logo, um es sofort oben in der App zu testen:
+      Wähle dein Lieblings-Klassentier! Es erscheint sofort oben in der App und wird auch als Icon genutzt, wenn du die App <strong>„Zum Startbildschirm hinzufügst“</strong>:
     </p>
     <div class="logo-proposals-grid">
       {#each logoOptions as opt (opt.id)}
@@ -715,3 +710,4 @@
     color: #64748b;
   }
 </style>
+

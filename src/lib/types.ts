@@ -30,7 +30,7 @@ export type TypeFilter = 'mult_only' | 'all_types';
 
 export type MasteryStatus = 'new' | 'learning' | 'mastered';
 
-export type LogoVariantId = 'blocks' | 'owl' | 'rocket' | 'trophy' | 'fox';
+export type LogoVariantId = 'penguin' | 'otter' | 'owl' | 'rocket' | 'fox';
 
 export interface UserStats {
   stars: number;
@@ -49,6 +49,7 @@ export interface UserProfile {
   id: string;
   name: string;
   avatar: string;
+  logoVariant?: LogoVariantId;
   createdAt: number;
   stats: UserStats;
   cards: TaskCard[];
