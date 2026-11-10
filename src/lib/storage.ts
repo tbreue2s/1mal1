@@ -1,7 +1,9 @@
-import { generateAllTaskCards } from './generator';
+import { generateAllTaskCards, generatePlusMinusCards } from './generator';
 import type {
+  GameMode,
   LearningMode,
   LogoVariantId,
+  PlusMinusFocus,
   TaskCard,
   TypeFilter,
   UserProfile,
@@ -30,7 +32,7 @@ export const AVAILABLE_AVATARS = [
   '⭐',
 ];
 
-// Didaktische Reihenfolge der Reihen beim Neueinstieg (Kernaufgaben zuerst)
+// Didaktische Reihenfolge der Reihen beim 1×1-Neueinstieg (Kernaufgaben zuerst)
 const DIDACTIC_ROW_PRIORITY: Record<number, number> = {
   1: 1,
   10: 2,
@@ -44,7 +46,7 @@ const DIDACTIC_ROW_PRIORITY: Record<number, number> = {
   7: 10,
 };
 
-export function getDefaultStats(): UserStats {
+export function getDefaultStats(mode: GameMode = 'mult'): UserStats {
   return {
     stars: 0,
     streakDays: 0,
@@ -52,9 +54,10 @@ export function getDefaultStats(): UserStats {
     totalSolved: 0,
     fastSolved: 0,
     soundEnabled: true,
-    selectedRows: [2, 5, 10],
+    selectedRows: mode === 'mult' ? [2, 5, 10] : [1, 2, 5, 10],
     learningMode: 'daily',
     typeFilter: 'mult_only',
+    plusMinusFocus: 'up_to_10',
     sessionSize: 12,
   };
 }
@@ -66,8 +69,12 @@ export function getLocalDateString(date: Date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
-function hydrateCards(savedCards?: Partial<TaskCard>[] | null): TaskCard[] {
-  const baseCards = generateAllTaskCards();
+function hydrateCards(
+  savedCards: Partial<TaskCard>[] | null | undefined,
+  mode: GameMode
+): TaskCard[] {
+  const baseCards =
+    mode === 'plusminus' ? generatePlusMinusCards() : generateAllTaskCards();
   if (!Array.isArray(savedCards) || savedCards.length === 0) {
     return baseCards;
   }
@@ -102,14 +109,25 @@ function hydrateCards(savedCards?: Partial<TaskCard>[] | null): TaskCard[] {
   });
 }
 
-function hydrateStats(parsed?: Partial<UserStats> | null): UserStats {
-  const defaults = getDefaultStats();
+function hydrateStats(
+  parsed: Partial<UserStats> | null | undefined,
+  mode: GameMode = 'mult'
+): UserStats {
+  const defaults = getDefaultStats(mode);
   if (!parsed) return defaults;
 
   const selectedRows =
     Array.isArray(parsed.selectedRows) && parsed.selectedRows.length > 0
       ? parsed.selectedRows.filter((r) => r >= 1 && r <= 10)
       : defaults.selectedRows;
+
+  const validFocus =
+    parsed.plusMinusFocus === 'up_to_10' ||
+    parsed.plusMinusFocus === 'over_10' ||
+    parsed.plusMinusFocus === 'doubles' ||
+    parsed.plusMinusFocus === 'rows'
+      ? parsed.plusMinusFocus
+      : defaults.plusMinusFocus;
 
   const stats: UserStats = {
     stars: typeof parsed.stars === 'number' ? parsed.stars : defaults.stars,
@@ -123,7 +141,7 @@ function hydrateStats(parsed?: Partial<UserStats> | null): UserStats {
       typeof parsed.fastSolved === 'number' ? parsed.fastSolved : 0,
     soundEnabled:
       typeof parsed.soundEnabled === 'boolean' ? parsed.soundEnabled : true,
-    selectedRows: selectedRows.length > 0 ? selectedRows : [2, 5, 10],
+    selectedRows: selectedRows.length > 0 ? selectedRows : defaults.selectedRows,
     learningMode:
       parsed.learningMode === 'rows' || parsed.learningMode === 'daily'
         ? parsed.learningMode
@@ -132,6 +150,7 @@ function hydrateStats(parsed?: Partial<UserStats> | null): UserStats {
       parsed.typeFilter === 'all_types' || parsed.typeFilter === 'mult_only'
         ? parsed.typeFilter
         : 'mult_only',
+    plusMinusFocus: validFocus,
     sessionSize:
       typeof parsed.sessionSize === 'number' && parsed.sessionSize >= 5
         ? parsed.sessionSize
@@ -153,28 +172,32 @@ function hydrateStats(parsed?: Partial<UserStats> | null): UserStats {
   return stats;
 }
 
-export function createNewProfile(name: string, avatar = '🦊'): UserProfile {
+export function createNewProfile(name: string, avatar = '🐧'): UserProfile {
   const id = `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   return {
     id,
     name: name.trim() || 'Kind',
     avatar,
+    activeGameMode: 'mult',
     createdAt: Date.now(),
-    stats: getDefaultStats(),
+    stats: getDefaultStats('mult'),
     cards: generateAllTaskCards(),
+    plusMinusStats: getDefaultStats('plusminus'),
+    plusMinusCards: generatePlusMinusCards(),
   };
 }
 
 /**
  * Lädt alle Benutzerprofile und das aktuell aktive Profil aus dem localStorage.
- * Migriert vorhandene Einzel-Benutzer-Daten (v1) automatisch in das erste Profil.
+ * Bestehende 1×1-Fortschritte bleiben zu 100 % erhalten; fehlende "Zahlenheld"-Felder
+ * werden verlustfrei ergänzt.
  */
 export function loadProfilesAndActiveId(): {
   profiles: UserProfile[];
   activeProfileId: string;
 } {
   if (typeof window === 'undefined') {
-    const fallback = createNewProfile('Kind 1', '🦊');
+    const fallback = createNewProfile('Kind 1', '🐧');
     return { profiles: [fallback], activeProfileId: fallback.id };
   }
 
@@ -183,22 +206,63 @@ export function loadProfilesAndActiveId(): {
     if (rawProfiles) {
       const parsed = JSON.parse(rawProfiles) as Array<Partial<UserProfile>>;
       if (Array.isArray(parsed) && parsed.length > 0) {
-        const profiles: UserProfile[] = parsed.map((p, idx) => ({
-          id: typeof p.id === 'string' && p.id ? p.id : `user_${idx}`,
-          name: typeof p.name === 'string' && p.name.trim() ? p.name.trim() : `Kind ${idx + 1}`,
-          avatar:
-            typeof p.avatar === 'string' && p.avatar
-              ? p.avatar
-              : AVAILABLE_AVATARS[idx % AVAILABLE_AVATARS.length],
-          logoVariant: p.logoVariant,
-          createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
-          stats: hydrateStats(p.stats),
-          cards: hydrateCards(p.cards),
-        }));
+        const profiles: UserProfile[] = parsed.map((p, idx) => {
+          const userId =
+            typeof p.id === 'string' && p.id ? p.id : `user_${idx}`;
+
+          // Prüfe zusätzlich auf dedizierte Modus-Schlüssel user_${id}_progress_mult / plusminus
+          let multSavedCards = p.cards;
+          let multSavedStats = p.stats;
+          let pmSavedCards = p.plusMinusCards;
+          let pmSavedStats = p.plusMinusStats;
+
+          try {
+            const rawMult = window.localStorage.getItem(
+              `user_${userId}_progress_mult`
+            );
+            if (rawMult && (!multSavedCards || multSavedCards.length === 0)) {
+              const parsedMult = JSON.parse(rawMult);
+              multSavedCards = parsedMult.cards ?? multSavedCards;
+              multSavedStats = parsedMult.stats ?? multSavedStats;
+            }
+            const rawPm = window.localStorage.getItem(
+              `user_${userId}_progress_plusminus`
+            );
+            if (rawPm && (!pmSavedCards || pmSavedCards.length === 0)) {
+              const parsedPm = JSON.parse(rawPm);
+              pmSavedCards = parsedPm.cards ?? pmSavedCards;
+              pmSavedStats = parsedPm.stats ?? pmSavedStats;
+            }
+          } catch {
+            // Ignorieren
+          }
+
+          return {
+            id: userId,
+            name:
+              typeof p.name === 'string' && p.name.trim()
+                ? p.name.trim()
+                : `Kind ${idx + 1}`,
+            avatar:
+              typeof p.avatar === 'string' && p.avatar
+                ? p.avatar
+                : AVAILABLE_AVATARS[idx % AVAILABLE_AVATARS.length],
+            logoVariant: p.logoVariant,
+            activeGameMode:
+              p.activeGameMode === 'plusminus' ? 'plusminus' : 'mult',
+            createdAt:
+              typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
+            stats: hydrateStats(multSavedStats, 'mult'),
+            cards: hydrateCards(multSavedCards, 'mult'),
+            plusMinusStats: hydrateStats(pmSavedStats, 'plusminus'),
+            plusMinusCards: hydrateCards(pmSavedCards, 'plusminus'),
+          };
+        });
 
         const savedActiveId = window.localStorage.getItem(ACTIVE_PROFILE_ID_KEY);
         const activeExists = profiles.some((p) => p.id === savedActiveId);
-        const activeProfileId = activeExists && savedActiveId ? savedActiveId : profiles[0].id;
+        const activeProfileId =
+          activeExists && savedActiveId ? savedActiveId : profiles[0].id;
         return { profiles, activeProfileId };
       }
     }
@@ -213,10 +277,13 @@ export function loadProfilesAndActiveId(): {
       const migratedProfile: UserProfile = {
         id: 'user_default_1',
         name: 'Spieler 1',
-        avatar: '🦊',
+        avatar: '🐧',
+        activeGameMode: 'mult',
         createdAt: Date.now(),
-        stats: hydrateStats(legacyStats),
-        cards: hydrateCards(legacyCards),
+        stats: hydrateStats(legacyStats, 'mult'),
+        cards: hydrateCards(legacyCards, 'mult'),
+        plusMinusStats: getDefaultStats('plusminus'),
+        plusMinusCards: generatePlusMinusCards(),
       };
       saveProfilesAndActiveId([migratedProfile], migratedProfile.id);
       return { profiles: [migratedProfile], activeProfileId: migratedProfile.id };
@@ -225,7 +292,7 @@ export function loadProfilesAndActiveId(): {
     // Fallback bei korruptem Storage
   }
 
-  const defaultProfile = createNewProfile('Spieler 1', '🦊');
+  const defaultProfile = createNewProfile('Spieler 1', '🐧');
   saveProfilesAndActiveId([defaultProfile], defaultProfile.id);
   return { profiles: [defaultProfile], activeProfileId: defaultProfile.id };
 }
@@ -238,15 +305,36 @@ export function saveProfilesAndActiveId(
   try {
     window.localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(profiles));
     window.localStorage.setItem(ACTIVE_PROFILE_ID_KEY, activeProfileId);
+
+    // Speichere zusätzlich isolierte Schlüssel je Nutzer und Modus
+    for (const p of profiles) {
+      window.localStorage.setItem(
+        `user_${p.id}_progress_mult`,
+        JSON.stringify({ stats: p.stats, cards: p.cards })
+      );
+      window.localStorage.setItem(
+        `user_${p.id}_progress_plusminus`,
+        JSON.stringify({ stats: p.plusMinusStats, cards: p.plusMinusCards })
+      );
+    }
   } catch {
     // Quota- oder Private-Mode-Fehler ignorieren
+  }
+}
+
+export function removeProfileStorageKeys(userId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(`user_${userId}_progress_mult`);
+    window.localStorage.removeItem(`user_${userId}_progress_plusminus`);
+  } catch {
+    // Ignorieren
   }
 }
 
 export function registerDailyPractice(stats: UserStats): UserStats {
   const today = getLocalDateString();
   if (stats.lastPracticeDate === today) {
-    // Falls jemand heute schon geübt hat, aber der Streak auf 0 stand, mindestens auf 1 setzen
     return stats.streakDays === 0 ? { ...stats, streakDays: 1 } : stats;
   }
 
@@ -255,7 +343,9 @@ export function registerDailyPractice(stats: UserStats): UserStats {
   const yesterday = getLocalDateString(yesterdayDate);
 
   const nextStreak =
-    stats.lastPracticeDate === yesterday ? stats.streakDays + 1 : Math.max(1, stats.streakDays);
+    stats.lastPracticeDate === yesterday
+      ? stats.streakDays + 1
+      : Math.max(1, stats.streakDays);
 
   return {
     ...stats,
@@ -265,7 +355,7 @@ export function registerDailyPractice(stats: UserStats): UserStats {
 }
 
 /**
- * Erlaubt das manuelle Setzen/Wiederherstellen des Tages-Streaks für den aktuellen Nutzer.
+ * Erlaubt das manuelle Setzen/Wiederherstellen des Tages-Streaks für den aktuellen Nutzer & Modus.
  */
 export function setManualStreak(stats: UserStats, newStreakDays: number): UserStats {
   const sanitized = Math.max(0, Math.min(9999, Math.floor(newStreakDays)));
@@ -276,14 +366,37 @@ export function setManualStreak(stats: UserStats, newStreakDays: number): UserSt
   };
 }
 
-export function resetProfileData(profile: UserProfile): UserProfile {
+/**
+ * Setzt entweder nur einen bestimmten Modus ('mult' oder 'plusminus') oder beide Modi
+ * eines Benutzerprofils zurück, ohne den anderen Modus zu überschreiben.
+ */
+export function resetProfileData(
+  profile: UserProfile,
+  targetMode?: GameMode | 'both'
+): UserProfile {
+  const modeToReset = targetMode ?? profile.activeGameMode ?? 'mult';
+  const soundEnabled = profile.stats.soundEnabled;
+
+  if (modeToReset === 'mult') {
+    return {
+      ...profile,
+      stats: { ...getDefaultStats('mult'), soundEnabled },
+      cards: generateAllTaskCards(),
+    };
+  }
+  if (modeToReset === 'plusminus') {
+    return {
+      ...profile,
+      plusMinusStats: { ...getDefaultStats('plusminus'), soundEnabled },
+      plusMinusCards: generatePlusMinusCards(),
+    };
+  }
   return {
     ...profile,
-    stats: {
-      ...getDefaultStats(),
-      soundEnabled: profile.stats.soundEnabled,
-    },
+    stats: { ...getDefaultStats('mult'), soundEnabled },
     cards: generateAllTaskCards(),
+    plusMinusStats: { ...getDefaultStats('plusminus'), soundEnabled },
+    plusMinusCards: generatePlusMinusCards(),
   };
 }
 
@@ -348,9 +461,24 @@ function smartShuffle(cards: TaskCard[]): TaskCard[] {
 }
 
 /**
- * Erstellt eine Trainingsrunde basierend auf Lern-Modus, Reihen-Auswahl und Typ-Filter:
- * 1. 'daily' (Tages-Training / Spaced Repetition): Mischt fällige Wiederholungskarten mit neuen Aufgaben.
- * 2. 'rows' (Fokus-Reihen): Filtert auf ausgewählte Reihen und mischt fällige & neue Aufgaben dieser Reihen.
+ * Didaktische Priorität für neue Karten im Modus "Zahlenheld" (Plus/Minus bis 20):
+ * 1. Zahlenraum bis 10 (Zerlegungen <= 10) & Verdopplungsaufgaben
+ * 2. Verliebte Zahlen (Summe = 10)
+ * 3. Zehnerübergang (Summe > 10)
+ */
+function getPlusMinusPriority(card: TaskCard): number {
+  const [a, b, c] = card.fact;
+  if (c <= 6) return 1;
+  if (c === 10) return 2; // Verliebte Zahlen
+  if (c <= 10) return 3;  // Zerlegungen bis 10
+  if (a === b) return 4;  // Verdoppeln (6+6, 7+7, ...)
+  if (a === 10 || b === 10) return 5; // 10 + x
+  return 6; // Zehnerübergang (z.B. 7 + 5, 8 + 6)
+}
+
+/**
+ * Erstellt eine Trainingsrunde basierend auf Spielmodus ('mult' vs. 'plusminus'),
+ * Lern-Modus ('daily' vs. 'rows'), Reihen-/Fokus-Auswahl und Typ-Filter.
  */
 export function buildSessionQueue(
   allCards: TaskCard[],
@@ -358,19 +486,41 @@ export function buildSessionQueue(
   selectedRows: number[],
   typeFilter: TypeFilter,
   sessionSize = 12,
+  gameMode: GameMode = 'mult',
+  plusMinusFocus: PlusMinusFocus = 'up_to_10',
   now = Date.now()
 ): TaskCard[] {
   const activeRows =
     selectedRows.length > 0 ? selectedRows : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-  // 1. Typ-Filter anwenden
-  let candidates = allCards.filter((card) =>
-    typeFilter === 'mult_only' ? card.type === 'mult' : true
-  );
+  // 1. Typ-Filter anwenden (Nur Malnehmen bzw. Nur Plusrechnen vs. Alle Typen inkl. Umkehr & Lücken)
+  let candidates = allCards.filter((card) => {
+    if (typeFilter === 'mult_only') {
+      return gameMode === 'plusminus' ? card.type === 'add' : card.type === 'mult';
+    }
+    return true;
+  });
 
-  // 2. Im Modus 'rows' auf gewählte Reihen beschränken
+  // 2. Im Fokus-Modus ('rows') auf gewählte Reihen bzw. Zahlenheld-Kategorie filtern
   if (mode === 'rows') {
-    candidates = candidates.filter((card) => activeRows.includes(card.row));
+    if (gameMode === 'mult') {
+      candidates = candidates.filter((card) => activeRows.includes(card.row));
+    } else {
+      if (plusMinusFocus === 'up_to_10') {
+        candidates = candidates.filter((card) => card.fact[2] <= 10);
+      } else if (plusMinusFocus === 'over_10') {
+        candidates = candidates.filter((card) => card.fact[2] > 10);
+      } else if (plusMinusFocus === 'doubles') {
+        candidates = candidates.filter(
+          (card) =>
+            card.fact[0] === card.fact[1] ||
+            Math.abs(card.fact[0] - card.fact[1]) === 1 ||
+            card.fact[2] === 10
+        );
+      } else {
+        candidates = candidates.filter((card) => activeRows.includes(card.row));
+      }
+    }
   }
 
   const dueCards = candidates
@@ -386,12 +536,20 @@ export function buildSessionQueue(
     .filter((c) => c.totalAttempts === 0)
     .sort((a, b) => {
       if (mode === 'daily') {
-        const prioA = DIDACTIC_ROW_PRIORITY[a.row] ?? 10;
-        const prioB = DIDACTIC_ROW_PRIORITY[b.row] ?? 10;
-        if (prioA !== prioB) return prioA - prioB;
+        if (gameMode === 'plusminus') {
+          const prioA = getPlusMinusPriority(a);
+          const prioB = getPlusMinusPriority(b);
+          if (prioA !== prioB) return prioA - prioB;
+        } else {
+          const prioA = DIDACTIC_ROW_PRIORITY[a.row] ?? 10;
+          const prioB = DIDACTIC_ROW_PRIORITY[b.row] ?? 10;
+          if (prioA !== prioB) return prioA - prioB;
+        }
       }
-      if (a.type === 'mult' && b.type !== 'mult') return -1;
-      if (b.type === 'mult' && a.type !== 'mult') return 1;
+      const isPrimaryA = a.type === 'mult' || a.type === 'add';
+      const isPrimaryB = b.type === 'mult' || b.type === 'add';
+      if (isPrimaryA && !isPrimaryB) return -1;
+      if (isPrimaryB && !isPrimaryA) return 1;
       return Math.random() - 0.5;
     });
 
@@ -438,17 +596,25 @@ export function buildSessionQueue(
 }
 
 /**
- * Zählt aktuell fällige Wiederholungskarten für den gewählten Typ-Filter
+ * Zählt aktuell fällige Wiederholungskarten für den gewählten Typ-Filter & Spielmodus
  */
 export function countDueCards(
   allCards: TaskCard[],
   typeFilter: TypeFilter,
+  gameMode: GameMode = 'mult',
   now = Date.now()
 ): number {
-  return allCards.filter(
-    (c) =>
-      (typeFilter === 'mult_only' ? c.type === 'mult' : true) &&
+  return allCards.filter((c) => {
+    const matchesType =
+      typeFilter === 'mult_only'
+        ? gameMode === 'plusminus'
+          ? c.type === 'add'
+          : c.type === 'mult'
+        : true;
+    return (
+      matchesType &&
       c.totalAttempts > 0 &&
       (c.dueDate <= now || c.repetitions === 0)
-  ).length;
+    );
+  }).length;
 }

@@ -2,7 +2,7 @@
   import { LOGO_OPTIONS } from '../lib/logos';
   import { getMatrixCellStatus } from '../lib/sm2';
   import { AVAILABLE_AVATARS } from '../lib/storage';
-  import type { LogoVariantId, UserProfile } from '../lib/types';
+  import type { GameMode, LogoVariantId, TaskCard, UserProfile } from '../lib/types';
   import BrandLogo from './BrandLogo.svelte';
 
   interface Props {
@@ -13,8 +13,8 @@
     onCreateProfile: (name: string, avatar: string) => void;
     onUpdateProfile: (id: string, name: string, avatar: string) => void;
     onDeleteProfile: (id: string) => void;
-    onResetProfile: (id: string) => void;
-    onSetManualStreak: (id: string, streakDays: number) => void;
+    onResetProfile: (id: string, targetMode: GameMode | 'both') => void;
+    onSetManualStreak: (id: string, streakDays: number, targetMode: GameMode) => void;
     onSelectLogo: (variant: LogoVariantId) => void;
     onClose: () => void;
   }
@@ -41,17 +41,18 @@
   let editNameInput = $state('');
   let editAvatarInput = $state(AVAILABLE_AVATARS[0]);
   let editingStreakProfileId = $state<string | null>(null);
+  let editingStreakMode = $state<GameMode>('mult');
   let manualStreakInput = $state<string>('0');
   let confirmResetId = $state<string | null>(null);
   let confirmDeleteId = $state<string | null>(null);
 
   const logoOptions = LOGO_OPTIONS;
 
-  function countMasteredFacts(profile: UserProfile): number {
+  function countMasteredForPool(pool: TaskCard[]): number {
     let mastered = 0;
     for (let a = 1; a <= 10; a++) {
       for (let b = 1; b <= 10; b++) {
-        const cellCards = profile.cards.filter(
+        const cellCards = pool.filter(
           (c) => c.fact[0] === a && c.fact[1] === b
         );
         if (getMatrixCellStatus(cellCards) === 'mastered') {
@@ -90,16 +91,25 @@
 
   function openStreakEditor(profile: UserProfile) {
     editingStreakProfileId = profile.id;
-    manualStreakInput = String(profile.stats.streakDays);
+    const mode = profile.activeGameMode ?? 'mult';
+    editingStreakMode = mode;
+    const targetStats = mode === 'plusminus' ? profile.plusMinusStats : profile.stats;
+    manualStreakInput = String(targetStats.streakDays);
     editingNameProfileId = null;
     confirmResetId = null;
     confirmDeleteId = null;
   }
 
+  function switchStreakEditorMode(profile: UserProfile, mode: GameMode) {
+    editingStreakMode = mode;
+    const targetStats = mode === 'plusminus' ? profile.plusMinusStats : profile.stats;
+    manualStreakInput = String(targetStats.streakDays);
+  }
+
   function saveStreak(profileId: string) {
     const parsed = Number.parseInt(manualStreakInput, 10);
     const safeVal = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
-    onSetManualStreak(profileId, safeVal);
+    onSetManualStreak(profileId, safeVal, editingStreakMode);
     editingStreakProfileId = null;
   }
 </script>
@@ -126,7 +136,8 @@
     <div class="profiles-list">
       {#each profiles as prof (prof.id)}
         {@const isActive = prof.id === activeProfileId}
-        {@const masteredCount = countMasteredFacts(prof)}
+        {@const masteredMult = countMasteredForPool(prof.cards)}
+        {@const masteredPm = countMasteredForPool(prof.plusMinusCards)}
         <div class="profile-item" class:active={isActive}>
           <div class="profile-main-row">
             <button
@@ -144,9 +155,10 @@
                   {/if}
                 </span>
                 <span class="prof-stats">
-                  🔥 {prof.stats.streakDays} {prof.stats.streakDays === 1 ? 'Tag' : 'Tage'} ·
-                  ⭐ {prof.stats.stars} ·
-                  ✅ {masteredCount}/100 gemeistert
+                  ✖️ 1×1: 🔥 {prof.stats.streakDays} · ⭐ {prof.stats.stars} · ✅ {masteredMult}/100
+                </span>
+                <span class="prof-stats">
+                  ➕ Zahlenheld: 🔥 {prof.plusMinusStats.streakDays} · ⭐ {prof.plusMinusStats.stars} · ✅ {masteredPm}/100
                 </span>
               </span>
             </button>
@@ -255,9 +267,27 @@
           <!-- Manuelle Streak-Eingabe -->
           {#if editingStreakProfileId === prof.id}
             <div class="inline-panel streak-panel">
-              <label class="streak-label" for="streak-input-{prof.id}">
+              <span class="streak-label">
                 🔥 Tages-Streak für <strong>{prof.name}</strong> manuell setzen (Wiederherstellung):
-              </label>
+              </span>
+              <div class="inline-btn-group">
+                <button
+                  type="button"
+                  class="cancel-inline-btn"
+                  style={editingStreakMode === 'mult' ? 'border-color: #4f46e5; background: #eef2ff; color: #312e81;' : ''}
+                  onclick={() => switchStreakEditorMode(prof, 'mult')}
+                >
+                  ✖️ 1×1 Meister ({prof.stats.streakDays})
+                </button>
+                <button
+                  type="button"
+                  class="cancel-inline-btn"
+                  style={editingStreakMode === 'plusminus' ? 'border-color: #0d9488; background: #f0fdfa; color: #115e59;' : ''}
+                  onclick={() => switchStreakEditorMode(prof, 'plusminus')}
+                >
+                  ➕ Zahlenheld ({prof.plusMinusStats.streakDays})
+                </button>
+              </div>
               <div class="streak-input-row">
                 <input
                   id="streak-input-{prof.id}"
@@ -285,22 +315,42 @@
             </div>
           {/if}
 
-          <!-- Bestätigung: Einzelnes Profil zurücksetzen -->
+          <!-- Bestätigung: Einzelnes Profil (oder einzelnen Modus) zurücksetzen -->
           {#if confirmResetId === prof.id}
             <div class="inline-panel warn-panel">
               <span>
-                Lernstand, Sterne und Streak von <strong>{prof.name}</strong> wirklich auf 0 zurücksetzen?
+                Welchen Lernstand von <strong>{prof.name}</strong> möchtest du zurücksetzen?
               </span>
               <div class="inline-btn-group">
                 <button
                   type="button"
                   class="danger-confirm-btn"
                   onclick={() => {
-                    onResetProfile(prof.id);
+                    onResetProfile(prof.id, 'mult');
                     confirmResetId = null;
                   }}
                 >
-                  Ja, zurücksetzen
+                  Nur ✖️ 1×1 Meister
+                </button>
+                <button
+                  type="button"
+                  class="danger-confirm-btn"
+                  onclick={() => {
+                    onResetProfile(prof.id, 'plusminus');
+                    confirmResetId = null;
+                  }}
+                >
+                  Nur ➕ Zahlenheld
+                </button>
+                <button
+                  type="button"
+                  class="danger-confirm-btn"
+                  onclick={() => {
+                    onResetProfile(prof.id, 'both');
+                    confirmResetId = null;
+                  }}
+                >
+                  Beide Modi
                 </button>
                 <button
                   type="button"

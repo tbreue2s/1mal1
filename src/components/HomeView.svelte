@@ -1,19 +1,30 @@
 <script lang="ts">
   import { getMatrixCellStatus } from '../lib/sm2';
   import { countDueCards } from '../lib/storage';
-  import type { LearningMode, TaskCard, TypeFilter, UserStats } from '../lib/types';
+  import type {
+    GameMode,
+    LearningMode,
+    PlusMinusFocus,
+    TaskCard,
+    TypeFilter,
+    UserStats,
+  } from '../lib/types';
 
   interface Props {
+    gameMode: GameMode;
     cards: TaskCard[];
     stats: UserStats;
+    onSwitchGameMode: (mode: GameMode) => void;
     onUpdateSettings: (partial: Partial<UserStats>) => void;
     onStartSession: () => void;
     onOpenMatrix: () => void;
   }
 
   let {
+    gameMode,
     cards,
     stats,
+    onSwitchGameMode,
     onUpdateSettings,
     onStartSession,
     onOpenMatrix,
@@ -21,7 +32,7 @@
 
   const allRows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-  let dueCount = $derived(countDueCards(cards, stats.typeFilter));
+  let dueCount = $derived(countDueCards(cards, stats.typeFilter, gameMode));
 
   let matrixSummary = $derived.by(() => {
     let mastered = 0;
@@ -48,23 +59,33 @@
     onUpdateSettings({ typeFilter });
   }
 
+  function setPlusMinusFocus(focus: PlusMinusFocus) {
+    onUpdateSettings({ plusMinusFocus: focus, learningMode: 'rows' });
+  }
+
   function toggleRow(row: number) {
     const current = stats.selectedRows;
     if (current.includes(row)) {
       if (current.length > 1) {
         onUpdateSettings({
           selectedRows: current.filter((r) => r !== row).sort((a, b) => a - b),
+          plusMinusFocus: 'rows',
         });
       }
     } else {
       onUpdateSettings({
         selectedRows: [...current, row].sort((a, b) => a - b),
+        plusMinusFocus: 'rows',
       });
     }
   }
 
   function selectPresetRows(rows: number[]) {
-    onUpdateSettings({ selectedRows: rows, learningMode: 'rows' });
+    onUpdateSettings({
+      selectedRows: rows,
+      learningMode: 'rows',
+      plusMinusFocus: 'rows',
+    });
   }
 
   function getRowMasteredPercent(row: number): number {
@@ -77,9 +98,53 @@
     }
     return mastered * 10;
   }
+
+  let focusBadgeText = $derived.by(() => {
+    if (gameMode === 'mult') {
+      return `${stats.selectedRows.length} gewählt`;
+    }
+    const f = stats.plusMinusFocus ?? 'up_to_10';
+    if (f === 'up_to_10') return 'Bis 10';
+    if (f === 'over_10') return 'Zehnerübergang';
+    if (f === 'doubles') return 'Verdoppeln';
+    return `${stats.selectedRows.length} Reihen`;
+  });
 </script>
 
 <div class="home-view">
+  <!-- Modus-Umschalter: 1×1 Meister vs. Zahlenheld -->
+  <div class="game-mode-switcher" role="tablist" aria-label="Rechenwelt wählen">
+    <button
+      type="button"
+      role="tab"
+      aria-selected={gameMode === 'mult'}
+      class="gm-btn gm-mult"
+      class:active={gameMode === 'mult'}
+      onclick={() => onSwitchGameMode('mult')}
+    >
+      <span class="gm-icon">✖️</span>
+      <span class="gm-text">
+        <span class="gm-title">1×1 Meister</span>
+        <span class="gm-sub">Mal &amp; Geteilt</span>
+      </span>
+    </button>
+
+    <button
+      type="button"
+      role="tab"
+      aria-selected={gameMode === 'plusminus'}
+      class="gm-btn gm-pm"
+      class:active={gameMode === 'plusminus'}
+      onclick={() => onSwitchGameMode('plusminus')}
+    >
+      <span class="gm-icon">➕</span>
+      <span class="gm-text">
+        <span class="gm-title">Zahlenheld</span>
+        <span class="gm-sub">Plus &amp; Minus bis 20</span>
+      </span>
+    </button>
+  </div>
+
   <!-- Lern-Modus Auswahl -->
   <section class="card-section" aria-label="Lern-Modus wählen">
     <h2 class="section-title">1. Wähle deinen Lern-Modus</h2>
@@ -98,7 +163,11 @@
             <span class="badge-pill">Spaced Repetition</span>
           </div>
           <p class="mode-desc">
-            Mischt schlaue Wiederholungen mit neuen Aufgaben passend zu deinem Tempo.
+            {#if gameMode === 'mult'}
+              Mischt schlaue 1×1-Wiederholungen mit neuen Aufgaben passend zu deinem Tempo.
+            {:else}
+              Startet mit Aufgaben bis 10 &amp; Verliebten Zahlen und steigert sich zum Zehnerübergang.
+            {/if}
           </p>
           <div class="due-info">
             {#if dueCount > 0}
@@ -119,71 +188,179 @@
         <div class="mode-icon">🎯</div>
         <div class="mode-content">
           <div class="mode-title-row">
-            <span class="mode-name">Fokus-Reihen</span>
-            <span class="badge-pill">{stats.selectedRows.length} gewählt</span>
+            <span class="mode-name">
+              {gameMode === 'mult' ? 'Fokus-Reihen' : 'Fokus-Themen & Reihen'}
+            </span>
+            <span class="badge-pill">{focusBadgeText}</span>
           </div>
           <p class="mode-desc">
-            Übe gezielt einzelne 1×1-Reihen (z.&nbsp;B. nur die 2er-, 5er- und 10er-Reihe).
+            {#if gameMode === 'mult'}
+              Übe gezielt einzelne 1×1-Reihen (z.&nbsp;B. nur die 2er-, 5er- und 10er-Reihe).
+            {:else}
+              Übe gezielt Zerlegungen bis 10, Zehnerübergänge, Verdoppeln oder einzelne Plus-Reihen.
+            {/if}
           </p>
         </div>
       </button>
     </div>
 
     {#if stats.learningMode === 'rows'}
-      <div class="rows-selector-box">
-        <div class="rows-header">
-          <span class="rows-label">Welche Reihen möchtest du üben?</span>
-          <div class="preset-chips">
-            <button
-              type="button"
-              class="chip-btn"
-              onclick={() => selectPresetRows([2, 5, 10])}
-            >
-              2er, 5er, 10er
-            </button>
-            <button
-              type="button"
-              class="chip-btn"
-              onclick={() => selectPresetRows([1, 2, 4, 5, 10])}
-            >
-              Kern-Reihen
-            </button>
-            <button
-              type="button"
-              class="chip-btn"
-              onclick={() => selectPresetRows([6, 7, 8, 9])}
-            >
-              6er–9er
-            </button>
-            <button
-              type="button"
-              class="chip-btn"
-              onclick={() => selectPresetRows([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])}
-            >
-              Alle
-            </button>
+      {#if gameMode === 'mult'}
+        <div class="rows-selector-box">
+          <div class="rows-header">
+            <span class="rows-label">Welche 1×1-Reihen möchtest du üben?</span>
+            <div class="preset-chips">
+              <button
+                type="button"
+                class="chip-btn"
+                onclick={() => selectPresetRows([2, 5, 10])}
+              >
+                2er, 5er, 10er
+              </button>
+              <button
+                type="button"
+                class="chip-btn"
+                onclick={() => selectPresetRows([1, 2, 4, 5, 10])}
+              >
+                Kern-Reihen
+              </button>
+              <button
+                type="button"
+                class="chip-btn"
+                onclick={() => selectPresetRows([6, 7, 8, 9])}
+              >
+                6er–9er
+              </button>
+              <button
+                type="button"
+                class="chip-btn"
+                onclick={() => selectPresetRows([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])}
+              >
+                Alle
+              </button>
+            </div>
+          </div>
+
+          <div class="rows-grid" role="group" aria-label="1 mal 1 Reihen auswählen">
+            {#each allRows as r (r)}
+              {@const isSelected = stats.selectedRows.includes(r)}
+              {@const pct = getRowMasteredPercent(r)}
+              <button
+                type="button"
+                class="row-btn"
+                class:selected={isSelected}
+                onclick={() => toggleRow(r)}
+                aria-pressed={isSelected}
+              >
+                <span class="row-num">{r}er</span>
+                <span class="row-mini-bar">
+                  <span class="row-mini-fill" style="width: {pct}%"></span>
+                </span>
+              </button>
+            {/each}
           </div>
         </div>
+      {:else}
+        <!-- Zahlenheld: Didaktische Fokus-Bereiche (Zerlegungen bis 10, Zehnerübergang, Verdoppeln, Reihen) -->
+        {@const pmFocus = stats.plusMinusFocus ?? 'up_to_10'}
+        <div class="rows-selector-box">
+          <span class="rows-label">Wähle deinen Zahlenheld-Schwerpunkt:</span>
 
-        <div class="rows-grid" role="group" aria-label="1 mal 1 Reihen auswählen">
-          {#each allRows as r (r)}
-            {@const isSelected = stats.selectedRows.includes(r)}
-            {@const pct = getRowMasteredPercent(r)}
+          <div class="pm-focus-grid">
             <button
               type="button"
-              class="row-btn"
-              class:selected={isSelected}
-              onclick={() => toggleRow(r)}
-              aria-pressed={isSelected}
+              class="pm-focus-card"
+              class:selected={pmFocus === 'up_to_10'}
+              onclick={() => setPlusMinusFocus('up_to_10')}
             >
-              <span class="row-num">{r}er</span>
-              <span class="row-mini-bar">
-                <span class="row-mini-fill" style="width: {pct}%"></span>
-              </span>
+              <span class="pm-f-icon">🌱</span>
+              <span class="pm-f-title">Bis 10 &amp; Zerlegungen</span>
+              <span class="pm-f-sub">z. B. 4 + 3 = 7 · 6 + 4 = 10</span>
             </button>
-          {/each}
+
+            <button
+              type="button"
+              class="pm-focus-card"
+              class:selected={pmFocus === 'over_10'}
+              onclick={() => setPlusMinusFocus('over_10')}
+            >
+              <span class="pm-f-icon">🌉</span>
+              <span class="pm-f-title">Zehnerübergang</span>
+              <span class="pm-f-sub">Über die 10 (z. B. 7 + 5 = 12)</span>
+            </button>
+
+            <button
+              type="button"
+              class="pm-focus-card"
+              class:selected={pmFocus === 'doubles'}
+              onclick={() => setPlusMinusFocus('doubles')}
+            >
+              <span class="pm-f-icon">👯</span>
+              <span class="pm-f-title">Verdoppeln &amp; 10er</span>
+              <span class="pm-f-sub">6 + 6, 7 + 8 &amp; Zehnerfreunde</span>
+            </button>
+
+            <button
+              type="button"
+              class="pm-focus-card"
+              class:selected={pmFocus === 'rows'}
+              onclick={() => setPlusMinusFocus('rows')}
+            >
+              <span class="pm-f-icon">🔢</span>
+              <span class="pm-f-title">Plus-Reihen (+1 bis +10)</span>
+              <span class="pm-f-sub">Gezielt einzelne Zahlen üben</span>
+            </button>
+          </div>
+
+          {#if pmFocus === 'rows'}
+            <div class="rows-header" style="margin-top: 10px;">
+              <span class="rows-label">Welche Plus-/Minus-Reihen möchtest du üben?</span>
+              <div class="preset-chips">
+                <button
+                  type="button"
+                  class="chip-btn"
+                  onclick={() => selectPresetRows([1, 2, 5, 10])}
+                >
+                  +1, +2, +5, +10
+                </button>
+                <button
+                  type="button"
+                  class="chip-btn"
+                  onclick={() => selectPresetRows([6, 7, 8, 9])}
+                >
+                  +6 bis +9
+                </button>
+                <button
+                  type="button"
+                  class="chip-btn"
+                  onclick={() => selectPresetRows([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])}
+                >
+                  Alle
+                </button>
+              </div>
+            </div>
+
+            <div class="rows-grid" role="group" aria-label="Plus-Reihen auswählen">
+              {#each allRows as r (r)}
+                {@const isSelected = stats.selectedRows.includes(r)}
+                {@const pct = getRowMasteredPercent(r)}
+                <button
+                  type="button"
+                  class="row-btn pm-row-btn"
+                  class:selected={isSelected}
+                  onclick={() => toggleRow(r)}
+                  aria-pressed={isSelected}
+                >
+                  <span class="row-num">+{r}</span>
+                  <span class="row-mini-bar">
+                    <span class="row-mini-fill" style="width: {pct}%"></span>
+                  </span>
+                </button>
+              {/each}
+            </div>
+          {/if}
         </div>
-      </div>
+      {/if}
     {/if}
   </section>
 
@@ -197,9 +374,13 @@
         class:selected={stats.typeFilter === 'mult_only'}
         onclick={() => setTypeFilter('mult_only')}
       >
-        <span class="type-emoji">✖️</span>
-        <span class="type-title">Nur Malnehmen</span>
-        <span class="type-example">3 × 4 = ?</span>
+        <span class="type-emoji">{gameMode === 'mult' ? '✖️' : '➕'}</span>
+        <span class="type-title">
+          {gameMode === 'mult' ? 'Nur Malnehmen' : 'Nur Plusrechnen'}
+        </span>
+        <span class="type-example">
+          {gameMode === 'mult' ? '3 × 4 = ?' : '7 + 5 = ?'}
+        </span>
       </button>
 
       <button
@@ -209,30 +390,45 @@
         onclick={() => setTypeFilter('all_types')}
       >
         <span class="type-emoji">🧩</span>
-        <span class="type-title">Auch Geteilt & Lücken</span>
-        <span class="type-example">12 : 4 = ? · ? × 4 = 12</span>
+        <span class="type-title">
+          {gameMode === 'mult' ? 'Auch Geteilt & Lücken' : 'Auch Minus & Lücken'}
+        </span>
+        <span class="type-example">
+          {gameMode === 'mult'
+            ? '12 : 4 = ? · ? × 4 = 12'
+            : '12 − 5 = ? · 7 + ? = 12'}
+        </span>
       </button>
     </div>
   </section>
 
   <!-- Start Button -->
-  <button type="button" class="start-cta-btn" onclick={onStartSession}>
-    <span class="cta-text">Training starten ({stats.sessionSize} Aufgaben)</span>
+  <button
+    type="button"
+    class="start-cta-btn"
+    class:cta-pm={gameMode === 'plusminus'}
+    onclick={onStartSession}
+  >
+    <span class="cta-text">
+      {gameMode === 'mult' ? '1×1-Training' : 'Zahlenheld-Runde'} starten ({stats.sessionSize} Aufgaben)
+    </span>
     <span class="cta-rocket">🚀</span>
   </button>
 
-  <!-- Fortschritt & 1x1 Matrix Vorschau -->
+  <!-- Fortschritt & Matrix Vorschau -->
   <section class="card-section matrix-preview-card" aria-label="Dein Lernfortschritt">
     <div class="preview-header">
       <div>
-        <h2 class="section-title">Deine 1×1-Matrix</h2>
+        <h2 class="section-title">
+          {gameMode === 'mult' ? 'Deine 1×1-Matrix' : 'Deine 1+1-Tafel (bis 20)'}
+        </h2>
         <p class="preview-sub">
           <strong>{matrixSummary.mastered}</strong> von 100 gemeistert ·
           <strong>{matrixSummary.learning}</strong> am Lernen
         </p>
       </div>
       <button type="button" class="open-matrix-btn" onclick={onOpenMatrix}>
-        10×10 Tafel öffnen →
+        {gameMode === 'mult' ? '10×10 Tafel öffnen →' : '1+1 Tafel öffnen →'}
       </button>
     </div>
 
@@ -258,7 +454,82 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding-bottom: 24px;
+    padding-bottom: 20px;
+  }
+
+  .game-mode-switcher {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    background: #ffffff;
+    padding: 8px;
+    border-radius: 20px;
+    border: 2px solid #e0e7ff;
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.06);
+  }
+
+  .gm-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: 2px solid transparent;
+    background: #f8fafc;
+    color: #475569;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: all 0.15s ease;
+  }
+
+  .gm-btn:hover {
+    background: #f1f5f9;
+  }
+
+  .gm-btn.gm-mult.active {
+    background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+    color: #ffffff;
+    border-color: #312e81;
+    box-shadow: 0 3px 10px rgba(79, 70, 229, 0.28);
+  }
+
+  .gm-btn.gm-pm.active {
+    background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+    color: #ffffff;
+    border-color: #115e59;
+    box-shadow: 0 3px 10px rgba(13, 148, 136, 0.28);
+  }
+
+  .gm-icon {
+    font-size: 1.5rem;
+    line-height: 1;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .gm-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+  }
+
+  .gm-title {
+    font-size: 0.96rem;
+    font-weight: 900;
+  }
+
+  .gm-sub {
+    font-size: 0.73rem;
+    font-weight: 700;
+    opacity: 0.85;
   }
 
   .card-section {
@@ -382,6 +653,55 @@
     font-size: 0.85rem;
     font-weight: 700;
     color: #334155;
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .pm-focus-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .pm-focus-card {
+    border-radius: 14px;
+    border: 2px solid #cbd5e1;
+    background: #f8fafc;
+    padding: 10px;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    text-align: left;
+    transition: all 0.12s ease;
+  }
+
+  .pm-focus-card:hover {
+    border-color: #2dd4bf;
+  }
+
+  .pm-focus-card.selected {
+    background: #f0fdfa;
+    border-color: #0d9488;
+    box-shadow: 0 3px 10px rgba(13, 148, 136, 0.16);
+  }
+
+  .pm-f-icon {
+    font-size: 1.25rem;
+  }
+
+  .pm-f-title {
+    font-size: 0.85rem;
+    font-weight: 900;
+    color: #134e4a;
+  }
+
+  .pm-f-sub {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #64748b;
   }
 
   .preset-chips {
@@ -440,6 +760,12 @@
     color: #ffffff;
     box-shadow: 0 3px 0 #312e81;
     transform: translateY(-1px);
+  }
+
+  .row-btn.pm-row-btn.selected {
+    background: #0d9488;
+    border-color: #115e59;
+    box-shadow: 0 3px 0 #134e4a;
   }
 
   .row-mini-bar {
@@ -518,7 +844,7 @@
     background: linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #4338ca 100%);
     color: #ffffff;
     font-family: inherit;
-    font-size: 1.2rem;
+    font-size: 1.15rem;
     font-weight: 900;
     cursor: pointer;
     display: flex;
@@ -530,6 +856,11 @@
     transition: transform 0.08s ease, box-shadow 0.08s ease;
   }
 
+  .start-cta-btn.cta-pm {
+    background: linear-gradient(135deg, #0d9488 0%, #14b8a6 50%, #0f766e 100%);
+    box-shadow: 0 6px 0 #115e59, 0 10px 20px rgba(13, 148, 136, 0.3);
+  }
+
   .start-cta-btn:hover {
     filter: brightness(1.05);
   }
@@ -537,6 +868,10 @@
   .start-cta-btn:active {
     transform: translateY(4px);
     box-shadow: 0 2px 0 #312e81;
+  }
+
+  .start-cta-btn.cta-pm:active {
+    box-shadow: 0 2px 0 #115e59;
   }
 
   .cta-rocket {
@@ -616,4 +951,3 @@
     margin-top: 2px;
   }
 </style>
-

@@ -8,18 +8,21 @@
   import UserModal from './components/UserModal.svelte';
   import { playKeyTap } from './lib/audio';
   import { applyDynamicHomeScreenIcon } from './lib/logos';
+  import { forcePWAUpdate, subscribePWAUpdate } from './lib/pwa';
   import {
     buildSessionQueue,
     createNewProfile,
     loadLogoVariant,
     loadProfilesAndActiveId,
     registerDailyPractice,
+    removeProfileStorageKeys,
     resetProfileData,
     saveLogoVariant,
     saveProfilesAndActiveId,
     setManualStreak,
   } from './lib/storage';
   import type {
+    GameMode,
     LogoVariantId,
     TaskCard,
     UserProfile,
@@ -37,12 +40,23 @@
   let activeSessionQueue = $state<TaskCard[]>([]);
   let showUserDropdown = $state(false);
   let dropdownWrapEl = $state<HTMLDivElement | null>(null);
+  let pwaUpdateAvailable = $state(false);
+  let isCheckingUpdate = $state(false);
 
   let activeProfile = $derived(
     profiles.find((p) => p.id === activeProfileId) ?? profiles[0]
   );
-  let cards = $derived(activeProfile.cards);
-  let stats = $derived(activeProfile.stats);
+
+  // Aktiver Spielmodus des ausgewählten Nutzers ('mult' = 1×1 Meister, 'plusminus' = Zahlenheld)
+  let gameMode = $derived<GameMode>(activeProfile.activeGameMode ?? 'mult');
+
+  // Isolierte Karten & Statistiken je Nutzer UND je Modus
+  let cards = $derived(
+    gameMode === 'plusminus' ? activeProfile.plusMinusCards : activeProfile.cards
+  );
+  let stats = $derived(
+    gameMode === 'plusminus' ? activeProfile.plusMinusStats : activeProfile.stats
+  );
 
   function persistAll(nextProfiles: UserProfile[], nextActiveId = activeProfileId) {
     profiles = nextProfiles;
@@ -55,16 +69,38 @@
     persistAll(next, activeProfile.id);
   }
 
-  function updateSettings(partial: Partial<UserStats>) {
+  function handleSwitchGameMode(nextMode: GameMode) {
+    showUserDropdown = false;
     updateActiveProfile((prof) => ({
       ...prof,
-      stats: { ...prof.stats, ...partial },
+      activeGameMode: nextMode,
     }));
+  }
+
+  function updateSettings(partial: Partial<UserStats>) {
+    updateActiveProfile((prof) => {
+      const mode = prof.activeGameMode ?? 'mult';
+      if (mode === 'plusminus') {
+        return {
+          ...prof,
+          plusMinusStats: { ...prof.plusMinusStats, ...partial },
+        };
+      }
+      return {
+        ...prof,
+        stats: { ...prof.stats, ...partial },
+      };
+    });
   }
 
   function toggleSound() {
     const nextSound = !stats.soundEnabled;
-    updateSettings({ soundEnabled: nextSound });
+    // Synchronisiere die Ton-Einstellung für beide Modi des Nutzers
+    updateActiveProfile((prof) => ({
+      ...prof,
+      stats: { ...prof.stats, soundEnabled: nextSound },
+      plusMinusStats: { ...prof.plusMinusStats, soundEnabled: nextSound },
+    }));
     if (nextSound) {
       playKeyTap(true);
     }
@@ -77,7 +113,9 @@
       stats.learningMode,
       stats.selectedRows,
       stats.typeFilter,
-      stats.sessionSize
+      stats.sessionSize,
+      gameMode,
+      stats.plusMinusFocus ?? 'up_to_10'
     );
     currentScreen = 'practice';
   }
@@ -87,13 +125,16 @@
     updateSettings({
       learningMode: 'rows',
       selectedRows: [row],
+      plusMinusFocus: 'rows',
     });
     activeSessionQueue = buildSessionQueue(
       cards,
       'rows',
       [row],
       stats.typeFilter,
-      stats.sessionSize
+      stats.sessionSize,
+      gameMode,
+      'rows'
     );
     currentScreen = 'practice';
   }
@@ -105,6 +146,29 @@
     isFast: boolean
   ) {
     updateActiveProfile((prof) => {
+      const mode = prof.activeGameMode ?? 'mult';
+      if (mode === 'plusminus') {
+        const nextPmCards = prof.plusMinusCards.map((c) =>
+          c.id === updatedCard.id ? updatedCard : c
+        );
+        const withStreak = registerDailyPractice(prof.plusMinusStats);
+        const nextPmStats: UserStats = {
+          ...withStreak,
+          stars: withStreak.stars + starsEarned,
+          totalSolved: isCorrect
+            ? withStreak.totalSolved + 1
+            : withStreak.totalSolved,
+          fastSolved: isFast
+            ? withStreak.fastSolved + 1
+            : withStreak.fastSolved,
+        };
+        return {
+          ...prof,
+          plusMinusCards: nextPmCards,
+          plusMinusStats: nextPmStats,
+        };
+      }
+
       const nextCards = prof.cards.map((c) =>
         c.id === updatedCard.id ? updatedCard : c
       );
@@ -136,6 +200,9 @@
 
   onMount(() => {
     applyDynamicHomeScreenIcon(logoVariant);
+    const unsubPWA = subscribePWAUpdate((needRefresh) => {
+      pwaUpdateAvailable = needRefresh;
+    });
 
     function handleOutsideClick(event: MouseEvent) {
       if (
@@ -157,6 +224,7 @@
     window.addEventListener('click', handleOutsideClick);
     window.addEventListener('keydown', handleKeydown);
     return () => {
+      unsubPWA();
       window.removeEventListener('click', handleOutsideClick);
       window.removeEventListener('keydown', handleKeydown);
     };
@@ -210,6 +278,7 @@
   }
 
   function handleDeleteProfile(id: string) {
+    removeProfileStorageKeys(id);
     const remaining = profiles.filter((p) => p.id !== id);
     if (remaining.length === 0) {
       const fresh = createNewProfile('Spieler 1', '🐧');
@@ -221,17 +290,31 @@
     }
   }
 
-  function handleResetProfile(id: string) {
-    const next = profiles.map((p) => (p.id === id ? resetProfileData(p) : p));
+  function handleResetProfile(id: string, targetMode: GameMode | 'both') {
+    const next = profiles.map((p) =>
+      p.id === id ? resetProfileData(p, targetMode) : p
+    );
     persistAll(next, activeProfileId);
   }
 
-  function handleSetManualStreak(id: string, streakDays: number) {
-    const next = profiles.map((p) =>
-      p.id === id
-        ? { ...p, stats: setManualStreak(p.stats, streakDays) }
-        : p
-    );
+  function handleSetManualStreak(
+    id: string,
+    streakDays: number,
+    targetMode: GameMode
+  ) {
+    const next = profiles.map((p) => {
+      if (p.id !== id) return p;
+      if (targetMode === 'plusminus') {
+        return {
+          ...p,
+          plusMinusStats: setManualStreak(p.plusMinusStats, streakDays),
+        };
+      }
+      return {
+        ...p,
+        stats: setManualStreak(p.stats, streakDays),
+      };
+    });
     persistAll(next, activeProfileId);
   }
 
@@ -241,9 +324,23 @@
     updateActiveProfile((prof) => ({ ...prof, logoVariant: variant }));
     applyDynamicHomeScreenIcon(variant);
   }
+
+  async function handlePWAUpdateClick() {
+    isCheckingUpdate = true;
+    await forcePWAUpdate();
+  }
 </script>
 
 <div class="app-shell">
+  {#if pwaUpdateAvailable}
+    <div class="pwa-update-banner" role="status">
+      <span>✨ Eine neue Version der App ist verfügbar!</span>
+      <button type="button" class="pwa-banner-btn" onclick={handlePWAUpdateClick}>
+        Jetzt aktualisieren
+      </button>
+    </div>
+  {/if}
+
   <!-- App-Header mit Logo, Spieler-Dropdown, Tages-Streak, Sternchen, Matrix & Ton -->
   <header class="app-header">
     <button
@@ -257,8 +354,12 @@
     >
       <BrandLogo variant={logoVariant} size={40} />
       <div class="brand-text-col">
-        <span class="brand-name">1×1 Meister</span>
-        <span class="brand-user-sub">{activeProfile.avatar} {activeProfile.name}</span>
+        <span class="brand-name">
+          {gameMode === 'mult' ? '1×1 Meister' : 'Zahlenheld'}
+        </span>
+        <span class="brand-user-sub" class:sub-pm={gameMode === 'plusminus'}>
+          {gameMode === 'mult' ? '✖️ Kleines 1×1' : '➕ Plus & Minus'}
+        </span>
       </div>
     </button>
 
@@ -284,6 +385,8 @@
             <div class="dropdown-section-label">Spieler wechseln</div>
             {#each profiles as prof (prof.id)}
               {@const isCurrent = prof.id === activeProfile.id}
+              {@const profStats =
+                gameMode === 'plusminus' ? prof.plusMinusStats : prof.stats}
               <button
                 type="button"
                 role="menuitem"
@@ -295,7 +398,7 @@
                 <span class="dd-info">
                   <span class="dd-name">{prof.name}</span>
                   <span class="dd-meta">
-                    🔥 {prof.stats.streakDays} · ⭐ {prof.stats.stars}
+                    🔥 {profStats.streakDays} · ⭐ {profStats.stars}
                   </span>
                 </span>
                 {#if isCurrent}
@@ -328,7 +431,7 @@
           showUserDropdown = false;
           currentScreen = 'users';
         }}
-        title="Tages-Streak: {stats.streakDays} {stats.streakDays === 1 ? 'Tag' : 'Tage'} (Antippen zum Bearbeiten)"
+        title="Tages-Streak ({gameMode === 'mult' ? '1×1' : 'Zahlenheld'}): {stats.streakDays} {stats.streakDays === 1 ? 'Tag' : 'Tage'} (Antippen zum Bearbeiten)"
       >
         <span aria-hidden="true">🔥</span>
         <span>{stats.streakDays}</span>
@@ -336,7 +439,7 @@
 
       <div
         class="reward-pill stars-pill"
-        title="Gesammelte Sterne von {activeProfile.name}: {stats.stars}"
+        title="Gesammelte Sterne von {activeProfile.name} ({gameMode === 'mult' ? '1×1' : 'Zahlenheld'}): {stats.stars}"
       >
         <span aria-hidden="true">⭐</span>
         <span>{stats.stars}</span>
@@ -350,8 +453,8 @@
           showUserDropdown = false;
           currentScreen = currentScreen === 'matrix' ? 'home' : 'matrix';
         }}
-        aria-label="10 mal 10 Matrix anzeigen"
-        title="1×1-Matrix (Fortschritt)"
+        aria-label="Fortschritts-Tafel anzeigen"
+        title="Fortschritts-Tafel"
       >
         📊
       </button>
@@ -372,8 +475,10 @@
   <main class="app-main">
     {#if currentScreen === 'home'}
       <HomeView
+        {gameMode}
         {cards}
         {stats}
+        onSwitchGameMode={handleSwitchGameMode}
         onUpdateSettings={updateSettings}
         onStartSession={startSession}
         onOpenMatrix={() => (currentScreen = 'matrix')}
@@ -391,16 +496,20 @@
             stats.learningMode,
             stats.selectedRows,
             stats.typeFilter,
-            stats.sessionSize
+            stats.sessionSize,
+            gameMode,
+            stats.plusMinusFocus ?? 'up_to_10'
           );
         }}
       />
     {:else if currentScreen === 'matrix'}
       <MatrixView
+        {gameMode}
         {cards}
+        onSwitchGameMode={handleSwitchGameMode}
         onPracticeRow={startSingleRowSession}
         onBack={() => (currentScreen = 'home')}
-        onResetProgress={() => handleResetProfile(activeProfile.id)}
+        onResetProgress={() => handleResetProfile(activeProfile.id, gameMode)}
       />
     {:else if currentScreen === 'users'}
       <UserModal
@@ -421,7 +530,7 @@
     {/if}
   </main>
 
-  <!-- Footer mit Impressum & Datenschutz sowie Schnellzugriff auf Benutzerverwaltung -->
+  <!-- Footer mit Benutzerverwaltung, PWA-Update-Button sowie Impressum & Datenschutz -->
   <footer class="app-footer">
     <button
       type="button"
@@ -432,6 +541,16 @@
       }}
     >
       👥 Benutzer &amp; Streak ({activeProfile.name})
+    </button>
+    <span class="footer-sep">·</span>
+    <button
+      type="button"
+      class="footer-link update-link"
+      disabled={isCheckingUpdate}
+      onclick={handlePWAUpdateClick}
+      title="Prüft auf eine neue App-Version und lädt sie ohne Datenverlust"
+    >
+      {isCheckingUpdate ? '⏳ Aktualisiere …' : '🔄 App-Update'}
     </button>
     <span class="footer-sep">·</span>
     <button
@@ -457,6 +576,34 @@
     flex-direction: column;
     padding: 12px 14px;
     box-sizing: border-box;
+  }
+
+  .pwa-update-banner {
+    background: #ecfdf5;
+    border: 2px solid #10b981;
+    color: #065f46;
+    border-radius: 16px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.82rem;
+    font-weight: 800;
+  }
+
+  .pwa-banner-btn {
+    background: #059669;
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    padding: 6px 10px;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
   }
 
   .app-header {
@@ -501,8 +648,12 @@
 
   .brand-user-sub {
     font-size: 0.72rem;
-    font-weight: 700;
-    color: #6366f1;
+    font-weight: 800;
+    color: #4f46e5;
+  }
+
+  .brand-user-sub.sub-pm {
+    color: #0d9488;
   }
 
   .header-badges {
@@ -739,6 +890,14 @@
 
   .footer-link:hover {
     color: #4f46e5;
+  }
+
+  .update-link {
+    color: #0d9488;
+  }
+
+  .update-link:hover {
+    color: #0f766e;
   }
 
   .footer-sep {

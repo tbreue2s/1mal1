@@ -1,16 +1,25 @@
 <script lang="ts">
   import { formatEquationParts } from '../lib/generator';
   import { getCardMastery, getMatrixCellStatus } from '../lib/sm2';
-  import type { MasteryStatus, TaskCard } from '../lib/types';
+  import type { GameMode, MasteryStatus, TaskCard } from '../lib/types';
 
   interface Props {
+    gameMode: GameMode;
     cards: TaskCard[];
+    onSwitchGameMode: (mode: GameMode) => void;
     onPracticeRow: (row: number) => void;
     onBack: () => void;
     onResetProgress: () => void;
   }
 
-  let { cards, onPracticeRow, onBack, onResetProgress }: Props = $props();
+  let {
+    gameMode,
+    cards,
+    onSwitchGameMode,
+    onPracticeRow,
+    onBack,
+    onResetProgress,
+  }: Props = $props();
 
   const factors = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
@@ -54,17 +63,50 @@
     if (status === 'learning') return 'Am Lernen';
     return 'Neu';
   }
+
+  function variantTypeName(card: TaskCard): string {
+    if (card.type === 'mult') return 'Mal';
+    if (card.type === 'div') return 'Geteilt';
+    if (card.type === 'add') return 'Plus';
+    if (card.type === 'sub') return 'Minus';
+    return 'Lücke';
+  }
 </script>
 
-<section class="matrix-view" aria-label="1 mal 1 Fortschritts-Matrix">
+<section class="matrix-view" aria-label="Fortschritts-Matrix">
   <div class="matrix-header-card">
     <div class="matrix-title-row">
       <div>
-        <h2>Deine 1×1-Tafel</h2>
-        <p class="subtitle">Tippe auf ein Feld für Details zu allen Aufgaben</p>
+        <h2>
+          {gameMode === 'mult'
+            ? 'Deine 1×1-Tafel'
+            : 'Deine 1+1-Tafel (Zahlenheld)'}
+        </h2>
+        <p class="subtitle">
+          Tippe auf ein Feld für Details zu allen Aufgaben
+        </p>
       </div>
       <button type="button" class="back-btn" onclick={onBack}>
         ← Zurück
+      </button>
+    </div>
+
+    <div class="mode-mini-tabs">
+      <button
+        type="button"
+        class="mini-tab"
+        class:active={gameMode === 'mult'}
+        onclick={() => onSwitchGameMode('mult')}
+      >
+        ✖️ 1×1-Tafel
+      </button>
+      <button
+        type="button"
+        class="mini-tab"
+        class:active={gameMode === 'plusminus'}
+        onclick={() => onSwitchGameMode('plusminus')}
+      >
+        ➕ 1+1-Tafel (bis 20)
       </button>
     </div>
 
@@ -98,11 +140,17 @@
   </div>
 
   <div class="grid-container">
-    <div class="matrix-grid" role="grid" aria-label="10 mal 10 Einmaleins Matrix">
-      <div class="corner-cell" role="columnheader">×</div>
+    <div class="matrix-grid" role="grid" aria-label="10 mal 10 Matrix">
+      <div
+        class="corner-cell"
+        class:corner-pm={gameMode === 'plusminus'}
+        role="columnheader"
+      >
+        {gameMode === 'mult' ? '×' : '+'}
+      </div>
       {#each factors as col (col)}
-        <div class="header-cell" role="columnheader" title="{col}er-Spalte">
-          {col}
+        <div class="header-cell" role="columnheader" title="Spalte {col}">
+          {gameMode === 'mult' ? col : `+${col}`}
         </div>
       {/each}
 
@@ -113,14 +161,17 @@
         {#each factors as b (`${a}_${b}`)}
           {@const status = getStatus(a, b)}
           {@const isSelected = selectedCell?.a === a && selectedCell?.b === b}
+          {@const cellResult = gameMode === 'mult' ? a * b : a + b}
+          {@const isMakeTen = gameMode === 'plusminus' && a + b === 10}
           <button
             type="button"
             class="matrix-cell status-{status}"
             class:selected={isSelected}
+            class:make-ten={isMakeTen}
             onclick={() => (selectedCell = { a, b })}
-            aria-label="{a} mal {b} gleich {a * b}, Status: {statusLabel(status)}"
+            aria-label="{a} {gameMode === 'mult' ? 'mal' : 'plus'} {b} gleich {cellResult}, Status: {statusLabel(status)}"
           >
-            <span class="cell-product">{a * b}</span>
+            <span class="cell-product">{cellResult}</span>
           </button>
         {/each}
       {/each}
@@ -128,11 +179,17 @@
   </div>
 
   {#if selectedCell}
+    {@const selResult =
+      gameMode === 'mult'
+        ? selectedCell.a * selectedCell.b
+        : selectedCell.a + selectedCell.b}
     <div class="detail-card">
       <div class="detail-top">
         <div class="detail-fact">
           <span class="big-eq">
-            {selectedCell.a} × {selectedCell.b} = {selectedCell.a * selectedCell.b}
+            {selectedCell.a}
+            {gameMode === 'mult' ? '×' : '+'}
+            {selectedCell.b} = {selResult}
           </span>
           <span class="status-pill pill-{selectedCellStatus}">
             {statusLabel(selectedCellStatus)}
@@ -141,9 +198,12 @@
         <button
           type="button"
           class="practice-row-btn"
+          class:btn-pm={gameMode === 'plusminus'}
           onclick={() => onPracticeRow(selectedCell!.b)}
         >
-          {selectedCell.b}er-Reihe üben 🚀
+          {gameMode === 'mult'
+            ? `${selectedCell.b}er-Reihe üben 🚀`
+            : `+${selectedCell.b}-Reihe üben 🚀`}
         </button>
       </div>
 
@@ -154,7 +214,7 @@
           <div class="variant-item v-{vStatus}">
             <div class="variant-eq">{eq.fullEquationWithSolution}</div>
             <div class="variant-meta">
-              <span>{vCard.type === 'mult' ? 'Mal' : vCard.type === 'div' ? 'Geteilt' : 'Lücke'}</span>
+              <span>{variantTypeName(vCard)}</span>
               {#if vCard.totalAttempts > 0}
                 <span>· {vCard.repetitions}× sicher</span>
                 {#if vCard.lastResponseMs}
@@ -177,11 +237,13 @@
         class="reset-trigger-btn"
         onclick={() => (showResetConfirm = true)}
       >
-        Lernstand zurücksetzen
+        Lernstand für {gameMode === 'mult' ? '1×1 Meister' : 'Zahlenheld'} zurücksetzen
       </button>
     {:else}
       <div class="reset-confirm-box">
-        <span>Wirklich alle Sterne und Lernstände löschen?</span>
+        <span>
+          Wirklich den Lernstand im Modus <strong>{gameMode === 'mult' ? '1×1 Meister' : 'Zahlenheld'}</strong> löschen? (Der andere Modus bleibt erhalten!)
+        </span>
         <div class="reset-actions">
           <button
             type="button"
@@ -191,7 +253,7 @@
               onResetProgress();
             }}
           >
-            Ja, alles zurücksetzen
+            Ja, Modus zurücksetzen
           </button>
           <button
             type="button"
@@ -231,7 +293,7 @@
 
   h2 {
     margin: 0;
-    font-size: 1.3rem;
+    font-size: 1.25rem;
     color: #1e1b4b;
   }
 
@@ -239,6 +301,31 @@
     margin: 2px 0 0;
     font-size: 0.85rem;
     color: #64748b;
+  }
+
+  .mode-mini-tabs {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .mini-tab {
+    flex: 1;
+    padding: 7px 10px;
+    border-radius: 11px;
+    border: 1.5px solid #cbd5e1;
+    background: #f8fafc;
+    color: #475569;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .mini-tab.active {
+    background: #eef2ff;
+    border-color: #4f46e5;
+    color: #312e81;
   }
 
   .back-btn {
@@ -335,7 +422,7 @@
     align-items: center;
     justify-content: center;
     font-weight: 800;
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     color: #4338ca;
     background: #eef2ff;
     border-radius: 7px;
@@ -345,6 +432,11 @@
   .corner-cell {
     background: #4f46e5;
     color: #ffffff;
+    font-size: 0.9rem;
+  }
+
+  .corner-cell.corner-pm {
+    background: #0d9488;
   }
 
   .matrix-cell {
@@ -362,6 +454,10 @@
     padding: 0;
     transition: transform 0.1s ease, border-color 0.12s ease;
     touch-action: manipulation;
+  }
+
+  .matrix-cell.make-ten.status-new {
+    border-color: #99f6e4;
   }
 
   .matrix-cell:hover {
@@ -457,8 +553,12 @@
     cursor: pointer;
   }
 
+  .practice-row-btn.btn-pm {
+    background: #0d9488;
+  }
+
   .practice-row-btn:hover {
-    background: #4338ca;
+    filter: brightness(0.95);
   }
 
   .variants-grid {
@@ -528,6 +628,7 @@
     font-size: 0.85rem;
     color: #991b1b;
     font-weight: 700;
+    text-align: center;
   }
 
   .reset-actions {
@@ -555,4 +656,3 @@
     cursor: pointer;
   }
 </style>
-
