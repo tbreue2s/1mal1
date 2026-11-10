@@ -1,0 +1,53 @@
+<svg width="512" height="512" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" style="color-scheme: only light; forced-color-adjust: none;">
+  <defs>
+    
+    <linearGradient id="gDark_fox" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1E293B" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+    <linearGradient id="gWhite_fox" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F8FAFC" />
+    </linearGradient>
+    <linearGradient id="gCream_fox" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFBEB" />
+      <stop offset="100%" stop-color="#FEF3C7" />
+    </linearGradient>
+    <linearGradient id="gOrange_fox" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FB923C" />
+      <stop offset="100%" stop-color="#EA580C" />
+    </linearGradient>
+    <linearGradient id="gGold_fox" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+    <linearGradient id="gRed_fox" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#EF4444" />
+      <stop offset="100%" stop-color="#DC2626" />
+    </linearGradient>
+  
+    <linearGradient id="foxBg" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#312E81" />
+      <stop offset="100%" stop-color="#1E1B4B" />
+    </linearGradient>
+    <linearGradient id="foxGreen" x1="28" y1="84" x2="92" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="28" fill="url(#foxBg)" />
+  <path d="M24 16L48 36L22 52Z" fill="url(#gOrange_fox)" />
+  <path d="M96 16L72 36L98 52Z" fill="url(#gOrange_fox)" />
+  <path d="M28 24L43 36L26 46Z" fill="url(#gCream_fox)" />
+  <path d="M92 24L77 36L94 46Z" fill="url(#gCream_fox)" />
+  <path d="M22 48C22 30 38 24 60 24C82 24 98 30 98 48C98 68 78 82 60 84C42 82 22 68 22 48Z" fill="url(#gOrange_fox)" />
+  <path d="M22 52C34 52 48 64 60 84C40 82 22 68 22 52Z" fill="url(#gCream_fox)" />
+  <path d="M98 52C86 52 72 64 60 84C80 82 98 68 98 52Z" fill="url(#gCream_fox)" />
+  <circle cx="43" cy="48" r="5.5" fill="url(#gDark_fox)" />
+  <circle cx="77" cy="48" r="5.5" fill="url(#gDark_fox)" />
+  <circle cx="45" cy="46" r="2" fill="url(#gWhite_fox)" />
+  <circle cx="79" cy="46" r="2" fill="url(#gWhite_fox)" />
+  <circle cx="60" cy="68" r="5" fill="url(#gDark_fox)" />
+  <rect x="28" y="84" width="64" height="24" rx="12" fill="url(#foxGreen)" />
+  <text x="60" y="101" text-anchor="middle" font-family="DejaVu Sans" font-weight="900" font-size="17" fill="url(#gWhite_fox)">1×1</text>
+</svg>

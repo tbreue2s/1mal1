@@ -1,0 +1,75 @@
+<svg width="512" height="512" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" style="color-scheme: only light; forced-color-adjust: none;">
+  <defs>
+    
+    <linearGradient id="gDark_otter" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1E293B" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+    <linearGradient id="gWhite_otter" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F8FAFC" />
+    </linearGradient>
+    <linearGradient id="gCream_otter" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFBEB" />
+      <stop offset="100%" stop-color="#FEF3C7" />
+    </linearGradient>
+    <linearGradient id="gOrange_otter" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FB923C" />
+      <stop offset="100%" stop-color="#EA580C" />
+    </linearGradient>
+    <linearGradient id="gGold_otter" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+    <linearGradient id="gRed_otter" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#EF4444" />
+      <stop offset="100%" stop-color="#DC2626" />
+    </linearGradient>
+  
+    <linearGradient id="otterBg" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0D9488" />
+      <stop offset="100%" stop-color="#115E59" />
+    </linearGradient>
+    <linearGradient id="otterFur" x1="0" y1="20" x2="0" y2="106" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#9A3412" />
+      <stop offset="100%" stop-color="#78350F" />
+    </linearGradient>
+    <linearGradient id="otterBelly" x1="0" y1="50" x2="0" y2="104" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FDE68A" />
+      <stop offset="100%" stop-color="#FCD34D" />
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="28" fill="url(#otterBg)" />
+  <circle cx="22" cy="26" r="3" fill="url(#gWhite_otter)" opacity="0.55" />
+  <circle cx="98" cy="24" r="2.5" fill="url(#gWhite_otter)" opacity="0.55" />
+  <!-- Runde Otter-Ohren -->
+  <circle cx="30" cy="34" r="10" fill="url(#otterFur)" />
+  <circle cx="90" cy="34" r="10" fill="url(#otterFur)" />
+  <circle cx="30" cy="34" r="5.5" fill="url(#otterBelly)" />
+  <circle cx="90" cy="34" r="5.5" fill="url(#otterBelly)" />
+  <!-- Otter-Körper & Kopf -->
+  <path d="M26 48C26 27 40 20 60 20C80 20 94 27 94 48V86C94 100 80 106 60 106C40 106 26 100 26 86V48Z" fill="url(#otterFur)" />
+  <!-- Heller Bauch -->
+  <path d="M36 66C36 56 46 52 60 52C74 52 84 56 84 66V90C84 100 74 104 60 104C46 104 36 100 36 90V66Z" fill="url(#otterBelly)" />
+  <!-- Schnauze / Bäckchen -->
+  <circle cx="51" cy="54" r="11" fill="url(#gCream_otter)" />
+  <circle cx="69" cy="54" r="11" fill="url(#gCream_otter)" />
+  <!-- Schnurrhaare -->
+  <line x1="28" y1="52" x2="41" y2="53" stroke="url(#gCream_otter)" stroke-width="2" stroke-linecap="round" />
+  <line x1="29" y1="57" x2="41" y2="56" stroke="url(#gCream_otter)" stroke-width="2" stroke-linecap="round" />
+  <line x1="92" y1="52" x2="79" y2="53" stroke="url(#gCream_otter)" stroke-width="2" stroke-linecap="round" />
+  <line x1="91" y1="57" x2="79" y2="56" stroke="url(#gCream_otter)" stroke-width="2" stroke-linecap="round" />
+  <!-- Augen -->
+  <circle cx="44" cy="40" r="5.8" fill="url(#gDark_otter)" />
+  <circle cx="76" cy="40" r="5.8" fill="url(#gDark_otter)" />
+  <circle cx="46" cy="38" r="2" fill="url(#gWhite_otter)" />
+  <circle cx="78" cy="38" r="2" fill="url(#gWhite_otter)" />
+  <!-- Otter-Nase & Mund -->
+  <path d="M53 46C56 44 64 44 67 46L60 53Z" fill="url(#gDark_otter)" />
+  <path d="M60 53V58M60 58C56 61 52 60 50 58M60 58C64 61 68 60 70 58" stroke="url(#gDark_otter)" stroke-width="2.2" stroke-linecap="round" />
+  <!-- 1x1 Schild auf dem Bauch + Pfoten -->
+  <rect x="33" y="69" width="54" height="27" rx="13.5" fill="url(#gWhite_otter)" stroke="#F59E0B" stroke-width="3" />
+  <circle cx="34" cy="82" r="6" fill="url(#otterFur)" />
+  <circle cx="86" cy="82" r="6" fill="url(#otterFur)" />
+  <text x="60" y="88" text-anchor="middle" font-family="DejaVu Sans" font-weight="900" font-size="18" fill="url(#gDark_otter)">1×1</text>
+</svg>

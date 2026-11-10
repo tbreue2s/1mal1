@@ -1,11 +1,30 @@
 import { registerSW } from 'virtual:pwa-register';
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
 let updateSWCallback: ((reloadPage?: boolean) => Promise<void>) | null = null;
 const listeners = new Set<(needRefresh: boolean) => void>();
 let needRefreshState = false;
 
+let deferredInstallPrompt: BeforeInstallPromptEvent | null = null;
+const installListeners = new Set<(canInstall: boolean) => void>();
+
 export function initPWAUpdater(): void {
   if (typeof window === 'undefined') return;
+
+  window.addEventListener('beforeinstallprompt', (e: Event) => {
+    e.preventDefault();
+    deferredInstallPrompt = e as BeforeInstallPromptEvent;
+    installListeners.forEach((fn) => fn(true));
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    installListeners.forEach((fn) => fn(false));
+  });
 
   try {
     updateSWCallback = registerSW({
@@ -34,6 +53,30 @@ export function subscribePWAUpdate(fn: (needRefresh: boolean) => void): () => vo
   return () => {
     listeners.delete(fn);
   };
+}
+
+export function subscribePWAInstallable(fn: (canInstall: boolean) => void): () => void {
+  fn(deferredInstallPrompt !== null);
+  installListeners.add(fn);
+  return () => {
+    installListeners.delete(fn);
+  };
+}
+
+export async function triggerPWAInstall(): Promise<boolean> {
+  if (!deferredInstallPrompt) return false;
+  try {
+    await deferredInstallPrompt.prompt();
+    const choice = await deferredInstallPrompt.userChoice;
+    if (choice.outcome === 'accepted') {
+      deferredInstallPrompt = null;
+      installListeners.forEach((fn) => fn(false));
+      return true;
+    }
+  } catch {
+    // Ignorieren
+  }
+  return false;
 }
 
 /**

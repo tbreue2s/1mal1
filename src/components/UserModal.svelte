@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { LOGO_OPTIONS } from '../lib/logos';
+  import { subscribePWAInstallable, triggerPWAInstall } from '../lib/pwa';
   import { getMatrixCellStatus } from '../lib/sm2';
   import { AVAILABLE_AVATARS } from '../lib/storage';
   import type { GameMode, LogoVariantId, TaskCard, UserProfile } from '../lib/types';
@@ -45,8 +47,24 @@
   let manualStreakInput = $state<string>('0');
   let confirmResetId = $state<string | null>(null);
   let confirmDeleteId = $state<string | null>(null);
+  let canInstallPWA = $state(false);
+  let logoChangedNotice = $state(false);
 
   const logoOptions = LOGO_OPTIONS;
+
+  onMount(() => {
+    const unsub = subscribePWAInstallable((installable) => {
+      canInstallPWA = installable;
+    });
+    return () => unsub();
+  });
+
+  function handleSelectLogoOption(id: LogoVariantId) {
+    if (id !== logoVariant) {
+      logoChangedNotice = true;
+    }
+    onSelectLogo(id);
+  }
 
   function countMasteredForPool(pool: TaskCard[]): number {
     let mastered = 0;
@@ -443,7 +461,7 @@
   <div class="section-card">
     <h3 class="card-heading">App- &amp; Startbildschirm-Logo wählen</h3>
     <p class="subtitle" style="margin-bottom: 10px;">
-      Wähle dein Lieblings-Klassentier! Es erscheint sofort oben in der App und wird auch als Icon genutzt, wenn du die App <strong>„Zum Startbildschirm hinzufügst“</strong>:
+      Wähle dein Lieblings-Klassentier! Es erscheint sofort oben in der App und wird auch als Icon genutzt, wenn du die App <strong>als App installierst / zum Startbildschirm hinzufügst</strong>:
     </p>
     <div class="logo-proposals-grid">
       {#each logoOptions as opt (opt.id)}
@@ -451,7 +469,7 @@
           type="button"
           class="logo-option-card"
           class:selected={logoVariant === opt.id}
-          onclick={() => onSelectLogo(opt.id)}
+          onclick={() => handleSelectLogoOption(opt.id)}
         >
           <BrandLogo variant={opt.id} size={54} />
           <div class="logo-opt-text">
@@ -461,6 +479,36 @@
         </button>
       {/each}
     </div>
+
+    {#if logoChangedNotice}
+      <div class="inline-panel edit-profile-panel" style="margin-top: 12px;">
+        <span>
+          💡 <strong>Tipp für Android App-Installation:</strong> Lade die Seite einmal kurz neu, bevor du im Chrome-Menü auf <em>„App installieren“</em> tippst – dann übernimmt Android garantiert dieses neue Tier-Icon ohne Chrome-Zeichen!
+        </span>
+        <div class="inline-btn-group">
+          <button
+            type="button"
+            class="save-profile-btn"
+            onclick={() => window.location.reload()}
+          >
+            🔄 Seite jetzt kurz neu laden
+          </button>
+        </div>
+      </div>
+    {/if}
+
+    {#if canInstallPWA}
+      <div style="margin-top: 12px;">
+        <button
+          type="button"
+          class="create-submit-btn"
+          style="width: 100%; background: #059669;"
+          onclick={() => triggerPWAInstall()}
+        >
+          📲 Jetzt als echte App installieren
+        </button>
+      </div>
+    {/if}
   </div>
 </section>
 

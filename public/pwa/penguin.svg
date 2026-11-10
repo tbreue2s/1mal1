@@ -1,0 +1,68 @@
+<svg width="512" height="512" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" style="color-scheme: only light; forced-color-adjust: none;">
+  <defs>
+    
+    <linearGradient id="gDark_penguin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1E293B" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+    <linearGradient id="gWhite_penguin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F8FAFC" />
+    </linearGradient>
+    <linearGradient id="gCream_penguin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFBEB" />
+      <stop offset="100%" stop-color="#FEF3C7" />
+    </linearGradient>
+    <linearGradient id="gOrange_penguin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FB923C" />
+      <stop offset="100%" stop-color="#EA580C" />
+    </linearGradient>
+    <linearGradient id="gGold_penguin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+    <linearGradient id="gRed_penguin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#EF4444" />
+      <stop offset="100%" stop-color="#DC2626" />
+    </linearGradient>
+  
+    <linearGradient id="pengBg" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0284C7" />
+      <stop offset="100%" stop-color="#1E3A8A" />
+    </linearGradient>
+    <linearGradient id="pengBadge" x1="0" y1="70" x2="0" y2="96" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#E0F2FE" />
+      <stop offset="100%" stop-color="#BAE6FD" />
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="28" fill="url(#pengBg)" />
+  <circle cx="20" cy="24" r="2.5" fill="url(#gWhite_penguin)" opacity="0.8" />
+  <circle cx="100" cy="28" r="2" fill="url(#gWhite_penguin)" opacity="0.8" />
+  <circle cx="16" cy="54" r="1.8" fill="url(#gWhite_penguin)" opacity="0.6" />
+  <!-- Watschel-Füße -->
+  <ellipse cx="44" cy="105" rx="11" ry="5.5" fill="url(#gOrange_penguin)" />
+  <ellipse cx="76" cy="105" rx="11" ry="5.5" fill="url(#gOrange_penguin)" />
+  <!-- Flügel / Flossen -->
+  <path d="M26 52C14 58 14 82 25 88L30 56Z" fill="url(#gDark_penguin)" />
+  <path d="M94 52C106 58 106 82 95 88L90 56Z" fill="url(#gDark_penguin)" />
+  <!-- Pinguin-Körper & Kopf -->
+  <path d="M26 54C26 28 40 16 60 16C80 16 94 28 94 54V82C94 98 80 105 60 105C40 105 26 98 26 82V54Z" fill="url(#gDark_penguin)" />
+  <!-- Weißes Gesicht & Bauch -->
+  <path d="M35 46C35 34 45 28 53 35C57 38 63 38 67 35C75 28 85 34 85 46V82C85 95 75 101 60 101C45 101 35 95 35 82V46Z" fill="url(#gWhite_penguin)" />
+  <!-- Rosa Wangen -->
+  <ellipse cx="42" cy="53" rx="4.5" ry="2.8" fill="#FDA4AF" />
+  <ellipse cx="78" cy="53" rx="4.5" ry="2.8" fill="#FDA4AF" />
+  <!-- Augen -->
+  <circle cx="46" cy="44" r="6" fill="url(#gDark_penguin)" />
+  <circle cx="74" cy="44" r="6" fill="url(#gDark_penguin)" />
+  <circle cx="48" cy="42" r="2.2" fill="url(#gWhite_penguin)" />
+  <circle cx="76" cy="42" r="2.2" fill="url(#gWhite_penguin)" />
+  <!-- Schnabel -->
+  <path d="M52 48C56 46 64 46 68 48L60 57Z" fill="url(#gOrange_penguin)" />
+  <!-- Roter Schal -->
+  <path d="M32 61C46 66 74 66 88 61L86 69C72 73 48 73 34 69Z" fill="url(#gRed_penguin)" />
+  <path d="M70 66L75 80L65 79Z" fill="url(#gRed_penguin)" />
+  <!-- 1x1 Bauch-Badge -->
+  <rect x="37" y="72" width="46" height="24" rx="12" fill="url(#pengBadge)" stroke="#0284C7" stroke-width="2" />
+  <text x="60" y="89" text-anchor="middle" font-family="DejaVu Sans" font-weight="900" font-size="18" fill="url(#gDark_penguin)">1×1</text>
+</svg>

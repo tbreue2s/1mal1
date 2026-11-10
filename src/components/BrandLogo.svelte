@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getLogoPngDataUrl, getLogoSvgMarkup } from '../lib/logos';
+  import { getLogoPngPath } from '../lib/logos';
   import type { LogoVariantId } from '../lib/types';
 
   interface Props {
@@ -9,17 +9,7 @@
 
   let { variant = 'penguin', size = 40 }: Props = $props();
 
-  let pngUrl = $state<string>('');
-  let svgHtml = $derived(getLogoSvgMarkup(variant, size));
-
-  $effect(() => {
-    const currentVariant = variant;
-    getLogoPngDataUrl(currentVariant).then((url) => {
-      if (currentVariant === variant && url) {
-        pngUrl = url;
-      }
-    });
-  });
+  let pngPath = $derived(getLogoPngPath(variant));
 </script>
 
 <span
@@ -27,18 +17,14 @@
   style="width: {size}px; height: {size}px;"
   aria-hidden="true"
 >
-  {#if pngUrl}
-    <img
-      src={pngUrl}
-      width={size}
-      height={size}
-      alt=""
-      class="brand-logo-img"
-      draggable="false"
-    />
-  {:else}
-    {@html svgHtml}
-  {/if}
+  <img
+    src={pngPath}
+    width={size}
+    height={size}
+    alt=""
+    class="brand-logo-img"
+    draggable="false"
+  />
 </span>
 
 <style>

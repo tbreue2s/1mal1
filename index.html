@@ -14,9 +14,24 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="1×1 Meister" />
-    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="icon" type="image/png" href="./pwa/penguin-192.png" />
+    <link rel="apple-touch-icon" href="./pwa/penguin-180.png" />
+    <link rel="manifest" href="./manifest-penguin.webmanifest" />
     <title>1×1 Meister – Kleines Einmaleins lernen</title>
+    <script>
+      try {
+        var savedLogo = localStorage.getItem('einmaleins_logo_v1');
+        var validLogos = ['penguin', 'otter', 'owl', 'rocket', 'fox'];
+        if (savedLogo && validLogos.indexOf(savedLogo) !== -1) {
+          var iconEl = document.querySelector('link[rel="icon"]');
+          if (iconEl) iconEl.href = './pwa/' + savedLogo + '-192.png';
+          var touchEl = document.querySelector('link[rel="apple-touch-icon"]');
+          if (touchEl) touchEl.href = './pwa/' + savedLogo + '-180.png';
+          var manifestEl = document.querySelector('link[rel="manifest"]');
+          if (manifestEl) manifestEl.href = './manifest-' + savedLogo + '.webmanifest';
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="app"></div>

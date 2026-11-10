@@ -261,135 +261,38 @@ export function getLogoSvgMarkup(variant: LogoVariantId, size = 120): string {
   }
 }
 
-const pngCache = new Map<LogoVariantId, string>();
-
 /**
- * Erzeugt eine gecachte 256×256-PNG-Data-URL aus dem SVG.
- * Da ein 256×256-Rasterbild von Chromiums Auto-Dark-Mode (ForceDark) als Illustration
- * eingestuft wird, wird es auf Android niemals farblich invertiert.
+ * Gibt den relativen Pfad zum vorbereiteten, gestochen scharfen 192×192-PNG-Logo zurück.
  */
-export function getLogoPngDataUrl(variant: LogoVariantId): Promise<string> {
-  const cached = pngCache.get(variant);
-  if (cached) return Promise.resolve(cached);
-
-  if (typeof document === 'undefined') {
-    return Promise.resolve('');
-  }
-
-  return new Promise((resolve) => {
-    const svgMarkup = getLogoSvgMarkup(variant, 256);
-    const svgDataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgMarkup)}`;
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 256;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, 256, 256);
-        }
-        const pngUrl = canvas.toDataURL('image/png');
-        pngCache.set(variant, pngUrl);
-        resolve(pngUrl);
-      } catch {
-        resolve(svgDataUrl);
-      }
-    };
-    img.onerror = () => resolve(svgDataUrl);
-    img.src = svgDataUrl;
-  });
+export function getLogoPngPath(variant: LogoVariantId): string {
+  return `./pwa/${variant}-192.png`;
 }
 
 /**
  * Aktualisiert dynamisch das Browser-Favicon, das Apple-Touch-Icon (für iOS/iPadOS Home-Bildschirm)
- * sowie das Web-App-Manifest, damit beim "Zum Startbildschirm hinzufügen" das gewählte Logo genutzt wird.
+ * sowie das Web-App-Manifest auf echte statische HTTPS-Dateien (statt blob:-URLs),
+ * damit Android Chrome (WebAPK) die App als echte native App ohne Chrome-Badge installieren kann.
  */
 export function applyDynamicHomeScreenIcon(variant: LogoVariantId): void {
   if (typeof document === 'undefined' || typeof window === 'undefined') return;
 
-  const svgMarkup = getLogoSvgMarkup(variant, 512);
-  const svgDataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgMarkup)}`;
-
   const iconLink = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
   if (iconLink) {
-    iconLink.href = svgDataUrl;
+    iconLink.type = 'image/png';
+    iconLink.href = `./pwa/${variant}-192.png`;
   }
 
-  const img = new Image();
-  img.onload = () => {
-    try {
-      const renderPng = (dim: number): string => {
-        const canvas = document.createElement('canvas');
-        canvas.width = dim;
-        canvas.height = dim;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, dim, dim);
-        }
-        return canvas.toDataURL('image/png');
-      };
+  const appleTouchLink = document.querySelector<HTMLLinkElement>(
+    'link[rel="apple-touch-icon"]'
+  );
+  if (appleTouchLink) {
+    appleTouchLink.href = `./pwa/${variant}-180.png`;
+  }
 
-      const png180 = renderPng(180);
-      const png192 = renderPng(192);
-      const png256 = renderPng(256);
-      const png512 = renderPng(512);
-
-      pngCache.set(variant, png256);
-
-      const appleTouchLink = document.querySelector<HTMLLinkElement>(
-        'link[rel="apple-touch-icon"]'
-      );
-      if (appleTouchLink) {
-        appleTouchLink.href = png180;
-      }
-
-      const manifestLink = document.querySelector<HTMLLinkElement>(
-        'link[rel="manifest"]'
-      );
-      if (manifestLink) {
-        const startUrl = new URL('./', window.location.href).href;
-        const dynamicManifest = {
-          name: '1×1 Meister – Kleines Einmaleins spielend lernen',
-          short_name: '1×1 Meister',
-          description:
-            'Kindgerechte Lern-App für das kleine 1×1 und Geteiltaufgaben mit intelligentem Spaced-Repetition-Training.',
-          theme_color: '#4F46E5',
-          background_color: '#EEF2FF',
-          display: 'standalone',
-          orientation: 'portrait',
-          start_url: startUrl,
-          scope: startUrl,
-          lang: 'de',
-          icons: [
-            {
-              src: png192,
-              sizes: '192x192',
-              type: 'image/png',
-              purpose: 'any',
-            },
-            {
-              src: png512,
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'any maskable',
-            },
-            {
-              src: svgDataUrl,
-              sizes: 'any',
-              type: 'image/svg+xml',
-              purpose: 'any',
-            },
-          ],
-        };
-        const blob = new Blob([JSON.stringify(dynamicManifest)], {
-          type: 'application/manifest+json',
-        });
-        manifestLink.href = URL.createObjectURL(blob);
-      }
-    } catch {
-      // Fallback auf Standard-Manifest bei Canvas-Einschränkungen
-    }
-  };
-  img.src = svgDataUrl;
+  const manifestLink = document.querySelector<HTMLLinkElement>(
+    'link[rel="manifest"]'
+  );
+  if (manifestLink) {
+    manifestLink.href = `./manifest-${variant}.webmanifest`;
+  }
 }
