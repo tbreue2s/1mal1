@@ -1,0 +1,717 @@
+<script lang="ts">
+  import { getMatrixCellStatus } from '../lib/sm2';
+  import { AVAILABLE_AVATARS } from '../lib/storage';
+  import type { LogoVariantId, UserProfile } from '../lib/types';
+  import BrandLogo from './BrandLogo.svelte';
+
+  interface Props {
+    profiles: UserProfile[];
+    activeProfileId: string;
+    logoVariant: LogoVariantId;
+    onSelectProfile: (id: string) => void;
+    onCreateProfile: (name: string, avatar: string) => void;
+    onDeleteProfile: (id: string) => void;
+    onResetProfile: (id: string) => void;
+    onSetManualStreak: (id: string, streakDays: number) => void;
+    onSelectLogo: (variant: LogoVariantId) => void;
+    onClose: () => void;
+  }
+
+  let {
+    profiles,
+    activeProfileId,
+    logoVariant,
+    onSelectProfile,
+    onCreateProfile,
+    onDeleteProfile,
+    onResetProfile,
+    onSetManualStreak,
+    onSelectLogo,
+    onClose,
+  }: Props = $props();
+
+  let newName = $state('');
+  let selectedAvatar = $state(AVAILABLE_AVATARS[0]);
+
+  // Zustand für manuelles Streak-Bearbeiten, Zurücksetzen & Löschen pro Profil
+  let editingStreakProfileId = $state<string | null>(null);
+  let manualStreakInput = $state<string>('0');
+  let confirmResetId = $state<string | null>(null);
+  let confirmDeleteId = $state<string | null>(null);
+
+  const logoOptions: Array<{ id: LogoVariantId; title: string; subtitle: string }> = [
+    { id: 'owl', title: '1. Mathe-Eule', subtitle: 'Mit Krone & 1×1-Schild' },
+    { id: 'blocks', title: '2. 3D-Bauklötze', subtitle: 'Bunte Rechenwürfel' },
+    { id: 'rocket', title: '3. Mathe-Rakete', subtitle: 'Start ins Zahlen-All' },
+    { id: 'trophy', title: '4. Meister-Pokal', subtitle: 'Goldener Siegerkelch' },
+    { id: 'fox', title: '5. Schlauer Fuchs', subtitle: 'Freundliches Maskottchen' },
+  ];
+
+  function countMasteredFacts(profile: UserProfile): number {
+    let mastered = 0;
+    for (let a = 1; a <= 10; a++) {
+      for (let b = 1; b <= 10; b++) {
+        const cellCards = profile.cards.filter(
+          (c) => c.fact[0] === a && c.fact[1] === b
+        );
+        if (getMatrixCellStatus(cellCards) === 'mastered') {
+          mastered++;
+        }
+      }
+    }
+    return mastered;
+  }
+
+  function handleAddProfile(event: SubmitEvent) {
+    event.preventDefault();
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    onCreateProfile(trimmed, selectedAvatar);
+    newName = '';
+    const nextIdx = (profiles.length + 1) % AVAILABLE_AVATARS.length;
+    selectedAvatar = AVAILABLE_AVATARS[nextIdx];
+  }
+
+  function openStreakEditor(profile: UserProfile) {
+    editingStreakProfileId = profile.id;
+    manualStreakInput = String(profile.stats.streakDays);
+    confirmResetId = null;
+    confirmDeleteId = null;
+  }
+
+  function saveStreak(profileId: string) {
+    const parsed = Number.parseInt(manualStreakInput, 10);
+    const safeVal = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
+    onSetManualStreak(profileId, safeVal);
+    editingStreakProfileId = null;
+  }
+</script>
+
+<section class="user-modal-view" aria-label="Benutzerprofile und Einstellungen">
+  <div class="header-card">
+    <div class="header-top">
+      <div>
+        <h2>Benutzer & Profile</h2>
+        <p class="subtitle">
+          Jedes Profil speichert Lernstand, Sterne und Streak separat lokal auf diesem Gerät.
+        </p>
+      </div>
+      <button type="button" class="back-btn" onclick={onClose}>
+        ← Zurück
+      </button>
+    </div>
+  </div>
+
+  <!-- Vorhandene Benutzerprofile -->
+  <div class="section-card">
+    <h3 class="card-heading">Spieler auswählen oder verwalten</h3>
+
+    <div class="profiles-list">
+      {#each profiles as prof (prof.id)}
+        {@const isActive = prof.id === activeProfileId}
+        {@const masteredCount = countMasteredFacts(prof)}
+        <div class="profile-item" class:active={isActive}>
+          <div class="profile-main-row">
+            <button
+              type="button"
+              class="profile-select-btn"
+              onclick={() => onSelectProfile(prof.id)}
+              title="Zu {prof.name} wechseln"
+            >
+              <span class="prof-avatar">{prof.avatar}</span>
+              <span class="prof-info">
+                <span class="prof-name-row">
+                  <span class="prof-name">{prof.name}</span>
+                  {#if isActive}
+                    <span class="active-badge">Aktiv</span>
+                  {/if}
+                </span>
+                <span class="prof-stats">
+                  🔥 {prof.stats.streakDays} {prof.stats.streakDays === 1 ? 'Tag' : 'Tage'} ·
+                  ⭐ {prof.stats.stars} ·
+                  ✅ {masteredCount}/100 gemeistert
+                </span>
+              </span>
+            </button>
+
+            <div class="profile-actions">
+              <button
+                type="button"
+                class="small-action-btn streak-edit-btn"
+                onclick={() =>
+                  editingStreakProfileId === prof.id
+                    ? (editingStreakProfileId = null)
+                    : openStreakEditor(prof)}
+                title="Streak manuell eingeben / wiederherstellen"
+              >
+                🔥 Streak ändern
+              </button>
+
+              <button
+                type="button"
+                class="small-action-btn reset-btn"
+                onclick={() => {
+                  confirmResetId = confirmResetId === prof.id ? null : prof.id;
+                  confirmDeleteId = null;
+                  editingStreakProfileId = null;
+                }}
+                title="Lernstand für {prof.name} zurücksetzen"
+              >
+                🔄 Reset
+              </button>
+
+              <button
+                type="button"
+                class="small-action-btn delete-btn"
+                onclick={() => {
+                  confirmDeleteId = confirmDeleteId === prof.id ? null : prof.id;
+                  confirmResetId = null;
+                  editingStreakProfileId = null;
+                }}
+                title="Profil {prof.name} löschen"
+              >
+                🗑️
+              </button>
+            </div>
+          </div>
+
+          <!-- Manuelle Streak-Eingabe -->
+          {#if editingStreakProfileId === prof.id}
+            <div class="inline-panel streak-panel">
+              <label class="streak-label" for="streak-input-{prof.id}">
+                🔥 Tages-Streak für <strong>{prof.name}</strong> manuell setzen (Wiederherstellung):
+              </label>
+              <div class="streak-input-row">
+                <input
+                  id="streak-input-{prof.id}"
+                  type="number"
+                  min="0"
+                  max="9999"
+                  class="streak-number-input"
+                  bind:value={manualStreakInput}
+                />
+                <button
+                  type="button"
+                  class="save-inline-btn"
+                  onclick={() => saveStreak(prof.id)}
+                >
+                  Streak speichern
+                </button>
+                <button
+                  type="button"
+                  class="cancel-inline-btn"
+                  onclick={() => (editingStreakProfileId = null)}
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          {/if}
+
+          <!-- Bestätigung: Einzelnes Profil zurücksetzen -->
+          {#if confirmResetId === prof.id}
+            <div class="inline-panel warn-panel">
+              <span>
+                Lernstand, Sterne und Streak von <strong>{prof.name}</strong> wirklich auf 0 zurücksetzen?
+              </span>
+              <div class="inline-btn-group">
+                <button
+                  type="button"
+                  class="danger-confirm-btn"
+                  onclick={() => {
+                    onResetProfile(prof.id);
+                    confirmResetId = null;
+                  }}
+                >
+                  Ja, zurücksetzen
+                </button>
+                <button
+                  type="button"
+                  class="cancel-inline-btn"
+                  onclick={() => (confirmResetId = null)}
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          {/if}
+
+          <!-- Bestätigung: Einzelnes Profil löschen -->
+          {#if confirmDeleteId === prof.id}
+            <div class="inline-panel warn-panel">
+              <span>
+                Benutzerprofil <strong>{prof.name}</strong> wirklich komplett löschen?
+              </span>
+              <div class="inline-btn-group">
+                <button
+                  type="button"
+                  class="danger-confirm-btn"
+                  onclick={() => {
+                    onDeleteProfile(prof.id);
+                    confirmDeleteId = null;
+                  }}
+                >
+                  Ja, Profil löschen
+                </button>
+                <button
+                  type="button"
+                  class="cancel-inline-btn"
+                  onclick={() => (confirmDeleteId = null)}
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          {/if}
+        </div>
+      {/each}
+    </div>
+  </div>
+
+  <!-- Neuen Benutzer anlegen -->
+  <div class="section-card">
+    <h3 class="card-heading">Neuen Benutzer anlegen</h3>
+    <form class="create-form" onsubmit={handleAddProfile}>
+      <div class="form-row">
+        <label class="field-label" for="new-user-name">Name des Spielers:</label>
+        <input
+          id="new-user-name"
+          type="text"
+          maxlength="24"
+          placeholder="z. B. Mia, Leon, Max ..."
+          class="name-input"
+          bind:value={newName}
+          required
+        />
+      </div>
+
+      <div class="form-row">
+        <span class="field-label">Figur / Avatar wählen:</span>
+        <div class="avatar-grid" role="group" aria-label="Avatar auswählen">
+          {#each AVAILABLE_AVATARS as av (av)}
+            <button
+              type="button"
+              class="avatar-choice"
+              class:selected={selectedAvatar === av}
+              onclick={() => (selectedAvatar = av)}
+              aria-label="Avatar {av}"
+            >
+              {av}
+            </button>
+          {/each}
+        </div>
+      </div>
+
+      <button
+        type="submit"
+        class="create-submit-btn"
+        disabled={newName.trim().length === 0}
+      >
+        + Benutzer anlegen
+      </button>
+    </form>
+  </div>
+
+  <!-- Logo-Auswahl (5 Vorschläge) -->
+  <div class="section-card">
+    <h3 class="card-heading">App-Logo auswählen (5 Vorschläge)</h3>
+    <p class="subtitle" style="margin-bottom: 10px;">
+      Tippe auf ein Logo, um es sofort oben in der App zu testen:
+    </p>
+    <div class="logo-proposals-grid">
+      {#each logoOptions as opt (opt.id)}
+        <button
+          type="button"
+          class="logo-option-card"
+          class:selected={logoVariant === opt.id}
+          onclick={() => onSelectLogo(opt.id)}
+        >
+          <BrandLogo variant={opt.id} size={54} />
+          <div class="logo-opt-text">
+            <span class="logo-opt-title">{opt.title}</span>
+            <span class="logo-opt-sub">{opt.subtitle}</span>
+          </div>
+        </button>
+      {/each}
+    </div>
+  </div>
+</section>
+
+<style>
+  .user-modal-view {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-bottom: 24px;
+  }
+
+  .header-card,
+  .section-card {
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 16px;
+    border: 2px solid #e0e7ff;
+    box-shadow: 0 4px 16px rgba(79, 70, 229, 0.06);
+  }
+
+  .header-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 1.3rem;
+    color: #1e1b4b;
+  }
+
+  .card-heading {
+    margin: 0 0 12px;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #312e81;
+  }
+
+  .subtitle {
+    margin: 4px 0 0;
+    font-size: 0.84rem;
+    color: #64748b;
+  }
+
+  .back-btn {
+    background: #eef2ff;
+    color: #4338ca;
+    border: 2px solid #c7d2fe;
+    border-radius: 12px;
+    padding: 8px 14px;
+    font-weight: 800;
+    font-size: 0.9rem;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+
+  .profiles-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .profile-item {
+    border: 2px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 10px 12px;
+    background: #f8fafc;
+    transition: all 0.15s ease;
+  }
+
+  .profile-item.active {
+    border-color: #4f46e5;
+    background: #eef2ff;
+  }
+
+  .profile-main-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .profile-select-btn {
+    flex: 1;
+    min-width: 180px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    border: none;
+    padding: 2px 0;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .prof-avatar {
+    font-size: 1.85rem;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: #ffffff;
+    border: 1.5px solid #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .prof-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .prof-name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .prof-name {
+    font-size: 1rem;
+    font-weight: 900;
+    color: #1e1b4b;
+  }
+
+  .active-badge {
+    background: #4f46e5;
+    color: #ffffff;
+    font-size: 0.68rem;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 999px;
+    text-transform: uppercase;
+  }
+
+  .prof-stats {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #475569;
+  }
+
+  .profile-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .small-action-btn {
+    border: 1.5px solid #cbd5e1;
+    background: #ffffff;
+    color: #334155;
+    border-radius: 10px;
+    padding: 6px 9px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .streak-edit-btn {
+    background: #ffedd5;
+    border-color: #fed7aa;
+    color: #9a3412;
+  }
+
+  .reset-btn:hover {
+    background: #fef3c7;
+    border-color: #fde68a;
+  }
+
+  .delete-btn:hover {
+    background: #fee2e2;
+    border-color: #fecaca;
+  }
+
+  .inline-panel {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-size: 0.84rem;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .streak-panel {
+    background: #fff7ed;
+    border: 1.5px solid #fdba74;
+    color: #7c2d12;
+  }
+
+  .warn-panel {
+    background: #fef2f2;
+    border: 1.5px solid #fca5a5;
+    color: #991b1b;
+    font-weight: 700;
+  }
+
+  .streak-label {
+    font-size: 0.82rem;
+  }
+
+  .streak-input-row,
+  .inline-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .streak-number-input {
+    width: 90px;
+    padding: 7px 10px;
+    border-radius: 10px;
+    border: 2px solid #fb923c;
+    font-size: 0.95rem;
+    font-weight: 800;
+    font-family: inherit;
+  }
+
+  .save-inline-btn {
+    background: #ea580c;
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-weight: 800;
+    font-size: 0.82rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .danger-confirm-btn {
+    background: #dc2626;
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    padding: 7px 12px;
+    font-weight: 800;
+    font-size: 0.82rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .cancel-inline-btn {
+    background: #ffffff;
+    color: #334155;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 7px 12px;
+    font-weight: 700;
+    font-size: 0.82rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .create-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field-label {
+    font-size: 0.84rem;
+    font-weight: 800;
+    color: #334155;
+  }
+
+  .name-input {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 2px solid #cbd5e1;
+    font-size: 0.98rem;
+    font-weight: 700;
+    font-family: inherit;
+    color: #1e1b4b;
+  }
+
+  .name-input:focus {
+    outline: none;
+    border-color: #4f46e5;
+  }
+
+  .avatar-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+  }
+
+  .avatar-choice {
+    min-height: 44px;
+    border-radius: 12px;
+    border: 2px solid #e2e8f0;
+    background: #f8fafc;
+    font-size: 1.4rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.12s ease;
+  }
+
+  .avatar-choice.selected {
+    border-color: #4f46e5;
+    background: #eef2ff;
+    transform: scale(1.06);
+  }
+
+  .create-submit-btn {
+    min-height: 48px;
+    border: none;
+    border-radius: 14px;
+    background: #4f46e5;
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 0.96rem;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .create-submit-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .logo-proposals-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 10px;
+  }
+
+  .logo-option-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 14px;
+    border: 2px solid #e2e8f0;
+    background: #f8fafc;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: all 0.12s ease;
+  }
+
+  .logo-option-card.selected {
+    border-color: #4f46e5;
+    background: #eef2ff;
+    box-shadow: 0 3px 10px rgba(79, 70, 229, 0.14);
+  }
+
+  .logo-opt-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .logo-opt-title {
+    font-size: 0.86rem;
+    font-weight: 800;
+    color: #1e1b4b;
+  }
+
+  .logo-opt-sub {
+    font-size: 0.74rem;
+    color: #64748b;
+  }
+</style>

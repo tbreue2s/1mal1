@@ -7,7 +7,7 @@
     playSuccessSound,
   } from '../lib/audio';
   import { formatEquationParts } from '../lib/generator';
-  import { applySM2 } from '../lib/sm2';
+  import { applySM2, FAST_THRESHOLD_MS, GOOD_THRESHOLD_MS } from '../lib/sm2';
   import type { TaskCard } from '../lib/types';
   import Keypad from './Keypad.svelte';
 
@@ -239,14 +239,14 @@
 
         <span
           class="speed-indicator"
-          class:speed-fast={elapsedLiveMs < 2500}
-          class:speed-good={elapsedLiveMs >= 2500 && elapsedLiveMs <= 6000}
-          class:speed-slow={elapsedLiveMs > 6000}
+          class:speed-fast={elapsedLiveMs <= FAST_THRESHOLD_MS}
+          class:speed-good={elapsedLiveMs > FAST_THRESHOLD_MS && elapsedLiveMs <= GOOD_THRESHOLD_MS}
+          class:speed-slow={elapsedLiveMs > GOOD_THRESHOLD_MS}
         >
-          {#if elapsedLiveMs < 2500}
-            ⚡ Blitz-Tempo (&lt; 2,5s)
-          {:else if elapsedLiveMs <= 6000}
-            👍 Gutes Tempo
+          {#if elapsedLiveMs <= FAST_THRESHOLD_MS}
+            ⚡ Blitz-Tempo (≤ 4s)
+          {:else if elapsedLiveMs <= GOOD_THRESHOLD_MS}
+            👍 Gutes Tempo (≤ 8s)
           {:else}
             🧠 In Ruhe rechnen
           {/if}
@@ -337,7 +337,7 @@
         </div>
         <div class="sum-box sum-fast">
           <span class="sum-val">{sessionFastCount} ⚡</span>
-          <span class="sum-lbl">Blitz-Antworten (&lt;2,5s)</span>
+          <span class="sum-lbl">Blitz-Antworten (≤ 4s)</span>
         </div>
         <div class="sum-box sum-acc">
           <span class="sum-val">

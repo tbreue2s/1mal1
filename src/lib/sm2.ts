@@ -4,6 +4,13 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
 export const MIN_EASE_FACTOR = 1.3;
 export const MAX_EASE_FACTOR = 3.2;
 
+// Entspannte Zeitgrenzen (inkl. Tippzeit auf dem Ziffernblock):
+// Bis 4 Sekunden = Blitz-Tempo (q = 4)
+// Bis 8 Sekunden = Gutes Tempo (q = 3)
+// Über 8 Sekunden = Zögernd / gerechnet (q = 2)
+export const FAST_THRESHOLD_MS = 4000;
+export const GOOD_THRESHOLD_MS = 8000;
+
 export interface SM2EvaluationResult {
   updatedCard: TaskCard;
   quality: 0 | 2 | 3 | 4;
@@ -15,17 +22,17 @@ export interface SM2EvaluationResult {
 /**
  * Bewertet die Antwortzeit automatisch ohne manuelle Selbstbewertung:
  * - Falsch: q = 0
- * - Richtig < 2500 ms: q = 4 (automatisiert)
- * - Richtig 2500..6000 ms: q = 3 (gut)
- * - Richtig > 6000 ms: q = 2 (zögernd / gerechnet)
+ * - Richtig <= 4000 ms: q = 4 (automatisiert / Blitz-Tempo)
+ * - Richtig 4001..8000 ms: q = 3 (Gutes Tempo)
+ * - Richtig > 8000 ms: q = 2 (zögernd / gerechnet)
  */
 export function evaluateResponseQuality(
   isCorrect: boolean,
   responseTimeMs: number
 ): 0 | 2 | 3 | 4 {
   if (!isCorrect) return 0;
-  if (responseTimeMs < 2500) return 4;
-  if (responseTimeMs <= 6000) return 3;
+  if (responseTimeMs <= FAST_THRESHOLD_MS) return 4;
+  if (responseTimeMs <= GOOD_THRESHOLD_MS) return 3;
   return 2;
 }
 
@@ -75,7 +82,7 @@ export function applySM2(
   let feedbackSubtitle = `Gelöst in ${secondsStr} Sekunden`;
 
   if (quality === 4) {
-    // Automatisiert (< 2,5 s): Intervall wächst maximal
+    // Automatisiert (<= 4 s): Intervall wächst maximal
     nextEase = Math.min(
       MAX_EASE_FACTOR,
       Number((card.easeFactor + 0.15).toFixed(2))
@@ -91,7 +98,7 @@ export function applySM2(
     feedbackTitle = 'Blitzschnell! ⚡';
     feedbackSubtitle = `Automatisiert in ${secondsStr} s (+2 ⭐)`;
   } else if (quality === 3) {
-    // Gut (2,5 s – 6 s): Standard-Intervallwachstum
+    // Gutes Tempo (4 s – 8 s): Standard-Intervallwachstum
     nextEase = Number(card.easeFactor.toFixed(2));
     if (nextRepetitions === 1) {
       nextInterval = 1;
@@ -104,7 +111,7 @@ export function applySM2(
     feedbackTitle = 'Klasse gemacht! 👍';
     feedbackSubtitle = `Sicher gelöst in ${secondsStr} s (+1 ⭐)`;
   } else {
-    // Zögernd / gerechnet (> 6 s, q = 2): Intervall wächst langsamer
+    // Zögernd / gerechnet (> 8 s, q = 2): Intervall wächst langsamer
     nextEase = Math.max(
       MIN_EASE_FACTOR,
       Number((card.easeFactor - 0.15).toFixed(2))
@@ -151,7 +158,7 @@ export function applySM2(
  * Bestimmt den Lernstatus einer einzelnen Karte:
  * - 'new' (Grau): Noch nie geübt
  * - 'mastered' (Grün): Mindestens 2 erfolgreiche Wiederholungen mit gutem Tempo (q >= 3)
- *   oder blitzschnell automatisiert (q = 4) bei gutem Ease-Faktor
+ *   oder blitzschnell automatisiert (q = 4)
  * - 'learning' (Gelb): Geübt, aber noch im Lernprozess
  */
 export function getCardMastery(card: TaskCard): MasteryStatus {
@@ -189,4 +196,3 @@ export function getMatrixCellStatus(cardsForFact: TaskCard[]): MasteryStatus {
 
   return 'learning';
 }
-

@@ -30,6 +30,8 @@ export type TypeFilter = 'mult_only' | 'all_types';
 
 export type MasteryStatus = 'new' | 'learning' | 'mastered';
 
+export type LogoVariantId = 'blocks' | 'owl' | 'rocket' | 'trophy' | 'fox';
+
 export interface UserStats {
   stars: number;
   streakDays: number;
@@ -43,6 +45,15 @@ export interface UserStats {
   sessionSize: number;
 }
 
+export interface UserProfile {
+  id: string;
+  name: string;
+  avatar: string;
+  createdAt: number;
+  stats: UserStats;
+  cards: TaskCard[];
+}
+
 export interface EquationParts {
   left: string;
   right: string;
@@ -50,4 +61,3 @@ export interface EquationParts {
   fullEquationWithSolution: string;
   hintText: string;
 }
-
