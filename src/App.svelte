@@ -664,7 +664,7 @@
   }
 
   .user-dropdown-wrap {
-    position: relative;
+    position: static;
   }
 
   .user-pill-btn {
@@ -703,17 +703,17 @@
 
   .user-dropdown-menu {
     position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    min-width: 215px;
+    top: calc(100% + 6px);
+    left: 6px;
+    right: 6px;
     background: #ffffff;
     border: 2px solid #c7d2fe;
     border-radius: 16px;
-    box-shadow: 0 10px 28px rgba(30, 27, 75, 0.18);
-    padding: 6px;
+    box-shadow: 0 12px 30px rgba(30, 27, 75, 0.22);
+    padding: 8px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
     z-index: 100;
   }
 
