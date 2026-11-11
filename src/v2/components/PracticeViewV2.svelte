@@ -52,6 +52,7 @@
   let sessionFastCount = $state(0);
   let sessionMistakes = $state(0);
   let seenCardIds = new Set<string>();
+  let retryCardIds = new Set<string>();
 
   let currentCard = $derived(queue[currentIndex]);
   let equationParts = $derived(
@@ -117,10 +118,13 @@
     feedbackSubtitle = result.feedbackSubtitle;
 
     if (isCorrect) {
-      if (result.quality === 4) {
-        sessionFastCount++;
-      }
-      if (isFirstTryForThisCard) {
+      if (!isFirstTryForThisCard) {
+        feedbackTitle = 'Klasse korrigiert! 👏';
+        feedbackSubtitle = 'Denkfehler direkt gemeistert!';
+      } else {
+        if (result.quality === 4) {
+          sessionFastCount++;
+        }
         sessionCorrectFirstTry++;
       }
       feedbackState = 'correct';
@@ -129,6 +133,7 @@
       sessionMistakes++;
       feedbackState = 'wrong';
       playErrorSound(soundEnabled);
+      retryCardIds.add(currentCard.id);
 
       // Fehlerkarte ans Ende anhängen
       queue = [...queue, { ...result.updatedCard }];
@@ -197,8 +202,15 @@
           : 'border-slate-200 dark:border-slate-800'
       }"
     >
-      <div class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-3">
-        {equationParts.typeBadge}
+      <div class="flex items-center justify-center gap-2 mb-3">
+        <span class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+          {equationParts.typeBadge}
+        </span>
+        {#if currentCard && retryCardIds.has(currentCard.id) && currentIndex >= initialQueue.length}
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+            🔁 Wiederholung
+          </span>
+        {/if}
       </div>
 
       <!-- Gleichung mit Eingabefeld -->

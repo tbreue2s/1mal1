@@ -129,12 +129,18 @@
     </div>
 
     <h2 class="text-base font-extrabold text-white mt-1">
-      {stats.sessionSize} gemischte Trainings-Karten
+      {dueCount >= stats.sessionSize
+        ? `${stats.sessionSize} Auffrisch-Karten (Puffer)`
+        : `${stats.sessionSize} gemischte Trainings-Karten`}
     </h2>
     <p class="text-xs text-slate-300 mt-0.5">
-      {gameMode === 'mult'
-        ? 'Festigt 1×1-Aufgaben im Langzeitgedächtnis vor dem Vergessen.'
-        : 'Schult Verliebte Zahlen & Zehnerübergänge spielerisch im Kopf.'}
+      {#if dueCount >= stats.sessionSize}
+        Auffrisch-Modus aktiv: Baut fällige Karten ab, bevor neue hinzukommen.
+      {:else}
+        {gameMode === 'mult'
+          ? 'Festigt 1×1-Aufgaben im Langzeitgedächtnis vor dem Vergessen.'
+          : 'Schult Verliebte Zahlen & Zehnerübergänge spielerisch im Kopf.'}
+      {/if}
     </p>
 
     <!-- Fortschrittsbalken -->
@@ -312,7 +318,7 @@
         <!-- Stern 1 -->
         <div
           class="p-2.5 rounded-xl border flex items-start gap-2.5 {
-            selectedChapter.stars >= 1
+            selectedChapter.star1Progress.isAchieved
               ? 'bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60'
               : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
           }"
@@ -320,18 +326,29 @@
           <span class="text-base leading-none">⭐</span>
           <div class="flex-1">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-extrabold {selectedChapter.stars >= 1 ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-800 dark:text-slate-200'}">
+              <span class="text-xs font-extrabold {selectedChapter.star1Progress.isAchieved ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-800 dark:text-slate-200'}">
                 Stern 1: Basis-Aufgaben
               </span>
-              {#if selectedChapter.stars >= 1}
+              {#if selectedChapter.star1Progress.isAchieved}
                 <span class="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.2 rounded-md">
                   Erreicht ✓
                 </span>
               {:else}
-                <span class="text-[10px] font-bold text-slate-400">Noch offen</span>
+                <span class="text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/70 px-1.5 py-0.2 rounded-md">
+                  {selectedChapter.star1Progress.current} / {selectedChapter.star1Progress.total} gefestigt ({selectedChapter.star1Progress.percent}%)
+                </span>
               {/if}
             </div>
-            <p class="text-[11px] text-slate-500 dark:text-slate-400 m-0 mt-0.5">
+
+            <!-- Mini Fortschrittsbalken -->
+            <div class="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full mt-1.5 overflow-hidden">
+              <div
+                class="h-full rounded-full transition-all duration-300 {selectedChapter.star1Progress.isAchieved ? 'bg-emerald-500' : 'bg-indigo-500'}"
+                style="width: {selectedChapter.star1Progress.percent}%"
+              ></div>
+            </div>
+
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 m-0 mt-1">
               {selectedChapter.star1Desc}
             </p>
           </div>
@@ -340,26 +357,42 @@
         <!-- Stern 2 -->
         <div
           class="p-2.5 rounded-xl border flex items-start gap-2.5 {
-            selectedChapter.stars >= 2
+            selectedChapter.star2Progress.isAchieved
               ? 'bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60'
+              : !selectedChapter.star2Progress.isUnlocked
+              ? 'opacity-60 bg-slate-50/40 dark:bg-slate-800/20 border-slate-200/50 dark:border-slate-800'
               : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
           }"
         >
           <span class="text-base leading-none">⭐⭐</span>
           <div class="flex-1">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-extrabold {selectedChapter.stars >= 2 ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-800 dark:text-slate-200'}">
+              <span class="text-xs font-extrabold {selectedChapter.star2Progress.isAchieved ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-800 dark:text-slate-200'}">
                 Stern 2: Umkehraufgaben
               </span>
-              {#if selectedChapter.stars >= 2}
+              {#if selectedChapter.star2Progress.isAchieved}
                 <span class="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.2 rounded-md">
                   Erreicht ✓
                 </span>
+              {:else if selectedChapter.star2Progress.isUnlocked}
+                <span class="text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/70 px-1.5 py-0.2 rounded-md">
+                  {selectedChapter.star2Progress.current} / {selectedChapter.star2Progress.total} gefestigt ({selectedChapter.star2Progress.percent}%)
+                </span>
               {:else}
-                <span class="text-[10px] font-bold text-slate-400">Noch offen</span>
+                <span class="text-[10px] font-bold text-slate-400">Gesperrt 🔒 (erst Stern 1)</span>
               {/if}
             </div>
-            <p class="text-[11px] text-slate-500 dark:text-slate-400 m-0 mt-0.5">
+
+            {#if selectedChapter.star2Progress.isUnlocked}
+              <div class="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full mt-1.5 overflow-hidden">
+                <div
+                  class="h-full rounded-full transition-all duration-300 {selectedChapter.star2Progress.isAchieved ? 'bg-emerald-500' : 'bg-indigo-500'}"
+                  style="width: {selectedChapter.star2Progress.percent}%"
+                ></div>
+              </div>
+            {/if}
+
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 m-0 mt-1">
               {selectedChapter.star2Desc}
             </p>
           </div>
@@ -368,26 +401,42 @@
         <!-- Stern 3 -->
         <div
           class="p-2.5 rounded-xl border flex items-start gap-2.5 {
-            selectedChapter.stars >= 3
+            selectedChapter.star3Progress.isAchieved
               ? 'bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60'
+              : !selectedChapter.star3Progress.isUnlocked
+              ? 'opacity-60 bg-slate-50/40 dark:bg-slate-800/20 border-slate-200/50 dark:border-slate-800'
               : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
           }"
         >
           <span class="text-base leading-none">⭐⭐⭐</span>
           <div class="flex-1">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-extrabold {selectedChapter.stars >= 3 ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-800 dark:text-slate-200'}">
+              <span class="text-xs font-extrabold {selectedChapter.star3Progress.isAchieved ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-800 dark:text-slate-200'}">
                 Stern 3: Lücken &amp; Meisterschaft
               </span>
-              {#if selectedChapter.stars >= 3}
+              {#if selectedChapter.star3Progress.isAchieved}
                 <span class="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.2 rounded-md">
                   Erreicht ✓
                 </span>
+              {:else if selectedChapter.star3Progress.isUnlocked}
+                <span class="text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/70 px-1.5 py-0.2 rounded-md">
+                  {selectedChapter.star3Progress.current} / {selectedChapter.star3Progress.total} gefestigt ({selectedChapter.star3Progress.percent}%)
+                </span>
               {:else}
-                <span class="text-[10px] font-bold text-slate-400">Noch offen</span>
+                <span class="text-[10px] font-bold text-slate-400">Gesperrt 🔒 (erst Stern 2)</span>
               {/if}
             </div>
-            <p class="text-[11px] text-slate-500 dark:text-slate-400 m-0 mt-0.5">
+
+            {#if selectedChapter.star3Progress.isUnlocked}
+              <div class="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full mt-1.5 overflow-hidden">
+                <div
+                  class="h-full rounded-full transition-all duration-300 {selectedChapter.star3Progress.isAchieved ? 'bg-emerald-500' : 'bg-indigo-500'}"
+                  style="width: {selectedChapter.star3Progress.percent}%"
+                ></div>
+              </div>
+            {/if}
+
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 m-0 mt-1">
               {selectedChapter.star3Desc}
             </p>
           </div>

@@ -426,10 +426,25 @@ export function saveLogoVariant(variant: LogoVariantId): void {
 }
 
 /**
- * Mischt Karten so, dass möglichst nicht zwei Aufgaben derselben Basisfamilie [a, b, c]
- * direkt hintereinander erscheinen.
+ * Gibt den eindeutigen Fakt-Familien-Schlüssel zurück.
+ * Aufgaben wie 3×7, 7×3, 21:7, 21:3 (bzw. 3+7, 7+3, 10-3, 10-7)
+ * teilen sich denselben kanonischen Schlüssel ("3_7").
  */
-function smartShuffle(cards: TaskCard[]): TaskCard[] {
+export function getFactFamilyKey(card: TaskCard): string {
+  const [a, b] = card.fact;
+  return `${Math.min(a, b)}_${Math.max(a, b)}`;
+}
+
+/**
+ * Intelligentes Mischen für Trainingsrunden:
+ * 1. Kurzzeitgedächtnis-Entzerrung: Verhindert, dass Tauschaufgaben (b×a) oder Umkehraufgaben
+ *    (c:b) derselben Fakten-Familie innerhalb von 3 Positionen aufeinanderfolgen (Abstand >= 3).
+ * 2. Cognitive-Load-Bremse: Verhindert mehr als 2 Lückenaufgaben in direkter Folge.
+ */
+export function smartShuffle(cards: TaskCard[]): TaskCard[] {
+  if (cards.length <= 1) return [...cards];
+
+  // Zufällige Basis-Mischung (Fisher-Yates)
   const pool = [...cards];
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -437,25 +452,45 @@ function smartShuffle(cards: TaskCard[]): TaskCard[] {
   }
 
   const result: TaskCard[] = [];
-  for (const card of pool) {
-    if (
-      result.length > 0 &&
-      result[result.length - 1].fact[0] === card.fact[0] &&
-      result[result.length - 1].fact[1] === card.fact[1]
-    ) {
-      const swapIdx = result.findIndex(
-        (c, idx) =>
-          idx < result.length - 1 &&
-          (c.fact[0] !== card.fact[0] || c.fact[1] !== card.fact[1])
-      );
-      if (swapIdx !== -1) {
-        const temp = result[swapIdx];
-        result[swapIdx] = card;
-        result.push(temp);
-        continue;
-      }
+  const remaining = [...pool];
+
+  while (remaining.length > 0) {
+    // Letzte 2 platzierte Karten: deren Familien-Schlüssel erfassen
+    const recentFamilies = result.slice(-2).map(getFactFamilyKey);
+
+    // Letzte 2 platzierte Karten: sind beide Lückenaufgaben?
+    const lastTwoAreGaps =
+      result.length >= 2 &&
+      result[result.length - 1].type.startsWith('gap_') &&
+      result[result.length - 2].type.startsWith('gap_');
+
+    // 1. Suche Kandidaten, der BEIDE Bedingungen erfüllt:
+    //    - Keine Familienkollision mit den letzten 2 Karten (Abstand >= 3)
+    //    - Keine 3. Lückenaufgabe in Folge
+    let candidateIdx = remaining.findIndex((c) => {
+      if (lastTwoAreGaps && c.type.startsWith('gap_')) return false;
+      if (recentFamilies.includes(getFactFamilyKey(c))) return false;
+      return true;
+    });
+
+    // 2. Falls nicht möglich, weiche zuerst die Lücken-Bedingung auf, behalte aber Familienabstand
+    if (candidateIdx === -1) {
+      candidateIdx = remaining.findIndex((c) => !recentFamilies.includes(getFactFamilyKey(c)));
     }
-    result.push(card);
+
+    // 3. Falls noch immer nicht möglich (z. B. Mini-Pool mit nur 1-2 Familien),
+    //    vermeide zumindest direkte Nachbarschaft (Abstand >= 2)
+    if (candidateIdx === -1 && result.length > 0) {
+      const lastFamily = getFactFamilyKey(result[result.length - 1]);
+      candidateIdx = remaining.findIndex((c) => getFactFamilyKey(c) !== lastFamily);
+    }
+
+    // 4. Fallback: Ersten verfügbaren nehmen
+    if (candidateIdx === -1) {
+      candidateIdx = 0;
+    }
+
+    result.push(remaining.splice(candidateIdx, 1)[0]);
   }
 
   return result;
@@ -572,13 +607,22 @@ export function buildSessionQueue(
   const selected: TaskCard[] = [];
 
   if (mode === 'daily') {
-    const maxDue = Math.min(dueCards.length, Math.ceil(sessionSize * 0.65));
+    // Überfälligkeits-Bremse („Rückstands-Puffer“):
+    // Wenn 12 oder mehr Karten überfällig sind, besteht die Session zu 100% aus
+    // fälligen Karten ("Auffrisch-Modus"), damit sich kein unüberwindbarer Berg anstaut.
+    const isHeavyBacklog = dueCards.length >= sessionSize;
+    const maxDue = isHeavyBacklog
+      ? Math.min(dueCards.length, sessionSize)
+      : Math.min(dueCards.length, Math.ceil(sessionSize * 0.65));
+
     selected.push(...dueCards.slice(0, maxDue));
 
     const remainingForNew = sessionSize - selected.length;
-    const newPool = newCards.slice(0, Math.max(remainingForNew * 3, 20));
-    const shuffledNew = smartShuffle(newPool);
-    selected.push(...shuffledNew.slice(0, remainingForNew));
+    if (remainingForNew > 0) {
+      const newPool = newCards.slice(0, Math.max(remainingForNew * 3, 20));
+      const shuffledNew = smartShuffle(newPool);
+      selected.push(...shuffledNew.slice(0, remainingForNew));
+    }
 
     if (selected.length < sessionSize) {
       const extraDue = dueCards.slice(maxDue, maxDue + (sessionSize - selected.length));

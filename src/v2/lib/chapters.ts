@@ -1,5 +1,14 @@
 import { getCardMastery, getMatrixCellStatus } from '../../lib/sm2';
+import { smartShuffle } from '../../lib/storage';
 import type { GameMode, PlusMinusFocus, TaskCard } from '../../lib/types';
+
+export interface StarProgress {
+  current: number;
+  total: number;
+  percent: number;
+  isUnlocked: boolean;
+  isAchieved: boolean;
+}
 
 export interface WorldChapter {
   id: string;
@@ -16,6 +25,9 @@ export interface WorldChapter {
   star1Desc: string;
   star2Desc: string;
   star3Desc: string;
+  star1Progress: StarProgress;
+  star2Progress: StarProgress;
+  star3Progress: StarProgress;
 }
 
 /**
@@ -211,66 +223,84 @@ function computeChapterStats(
   const countMastered = (list: TaskCard[]) =>
     list.filter((c) => getCardMastery(c) === 'mastered').length;
 
-  let star1Achieved = false;
-  let star2Achieved = false;
-  let star3Achieved = false;
+  // Konsolidierungsprüfung: Eine Karte gilt erst als gefestigt für einen Stern,
+  // wenn sie mindestens 2 erfolgreiche Wiederholungen mit guter/schneller Qualität aufweist.
+  const countConsolidated = (list: TaskCard[]) =>
+    list.filter((c) => c.repetitions >= 2 && (c.lastQuality ?? 0) >= 3).length;
+
+  let s1Cards: TaskCard[] = [];
+  let s2Cards: TaskCard[] = [];
+  let s3Cards: TaskCard[] = [];
 
   if (pmFocus === 'number_bonds_10') {
-    // Spezialfall Verliebte Zahlen:
-    // Stern 1: Ergänzen zur 10 (gap_add_a, gap_add_b)
-    const gapAddCards = chapterCards.filter(
+    s1Cards = chapterCards.filter(
       (c) => c.type === 'gap_add_a' || c.type === 'gap_add_b'
     );
-    // Stern 2: Minus von 10 (sub)
-    const subCards = chapterCards.filter((c) => c.type === 'sub');
-    // Stern 3: Minus-Lücken (gap_sub_b, gap_sub_c)
-    const gapSubCards = chapterCards.filter(
+    s2Cards = chapterCards.filter((c) => c.type === 'sub');
+    s3Cards = chapterCards.filter(
       (c) => c.type === 'gap_sub_b' || c.type === 'gap_sub_c'
     );
-
-    star1Achieved =
-      gapAddCards.length > 0 &&
-      countMastered(gapAddCards) / gapAddCards.length >= 0.6;
-    star2Achieved =
-      star1Achieved &&
-      subCards.length > 0 &&
-      countMastered(subCards) / subCards.length >= 0.6;
-    star3Achieved =
-      star2Achieved &&
-      gapSubCards.length > 0 &&
-      countMastered(gapSubCards) / gapSubCards.length >= 0.6;
   } else {
-    // 3-Sterne-Berechnung nach Aufgabentypen für Multiplikation und Standard-Plusminus
-    const basicCards = chapterCards.filter(
+    s1Cards = chapterCards.filter(
       (c) => c.type === 'mult' || c.type === 'add'
     );
-    const inverseCards = chapterCards.filter(
+    s2Cards = chapterCards.filter(
       (c) => c.type === 'div' || c.type === 'sub'
     );
-    const gapCards = chapterCards.filter((c) => c.type.startsWith('gap_'));
-
-    star1Achieved =
-      basicCards.length > 0 &&
-      countMastered(basicCards) / basicCards.length >= 0.6;
-    star2Achieved =
-      star1Achieved &&
-      inverseCards.length > 0 &&
-      countMastered(inverseCards) / inverseCards.length >= 0.6;
-    star3Achieved =
-      star2Achieved &&
-      gapCards.length > 0 &&
-      countMastered(gapCards) / gapCards.length >= 0.6;
+    s3Cards = chapterCards.filter((c) => c.type.startsWith('gap_'));
   }
 
+  const s1Total = s1Cards.length || 1;
+  const s1Current = countConsolidated(s1Cards);
+  const s1Percent = Math.min(100, Math.round((s1Current / s1Total) * 100));
+  const s1Achieved = s1Percent >= 80 && s1Current >= 1;
+
+  const star1Progress: StarProgress = {
+    current: s1Current,
+    total: s1Total,
+    percent: s1Percent,
+    isUnlocked: true,
+    isAchieved: s1Achieved,
+  };
+
+  const s2Total = s2Cards.length || 1;
+  const s2Current = countConsolidated(s2Cards);
+  const s2Percent = Math.min(100, Math.round((s2Current / s2Total) * 100));
+  const s2Unlocked = s1Achieved;
+  const s2Achieved = s2Unlocked && s2Percent >= 80 && s2Current >= 1;
+
+  const star2Progress: StarProgress = {
+    current: s2Current,
+    total: s2Total,
+    percent: s2Percent,
+    isUnlocked: s2Unlocked,
+    isAchieved: s2Achieved,
+  };
+
+  const s3Total = s3Cards.length || 1;
+  const s3Current = countConsolidated(s3Cards);
+  const s3Percent = Math.min(100, Math.round((s3Current / s3Total) * 100));
+  const s3Unlocked = s2Achieved;
+  const s3Achieved = s3Unlocked && s3Percent >= 80 && s3Current >= 1;
+
+  const star3Progress: StarProgress = {
+    current: s3Current,
+    total: s3Total,
+    percent: s3Percent,
+    isUnlocked: s3Unlocked,
+    isAchieved: s3Achieved,
+  };
+
   let stars: 0 | 1 | 2 | 3 = 0;
-  if (star3Achieved) stars = 3;
-  else if (star2Achieved) stars = 2;
-  else if (star1Achieved) stars = 1;
+  if (s3Achieved) stars = 3;
+  else if (s2Achieved) stars = 2;
+  else if (s1Achieved) stars = 1;
 
   let statusText = 'Neu erkunden';
   if (stars === 3) statusText = 'Gemeistert! ⭐⭐⭐';
-  else if (stars === 2) statusText = 'Stufe 3 freischalten';
-  else if (stars === 1) statusText = 'Stufe 2 freischalten';
+  else if (stars === 2) statusText = `Stufe 3 (${s3Current}/${s3Total} gefestigt)`;
+  else if (stars === 1) statusText = `Stufe 2 (${s2Current}/${s2Total} gefestigt)`;
+  else if (s1Current > 0) statusText = `Stufe 1 (${s1Current}/${s1Total} gefestigt)`;
   else if (percent > 0) statusText = `${percent}% gelernt`;
 
   return {
@@ -288,6 +318,9 @@ function computeChapterStats(
     star1Desc,
     star2Desc,
     star3Desc,
+    star1Progress,
+    star2Progress,
+    star3Progress,
   };
 }
 
@@ -415,5 +448,5 @@ export function buildChapterSessionQueue(
     selected.push(...rest.slice(0, sessionSize - selected.length));
   }
 
-  return selected.sort(() => Math.random() - 0.5);
+  return smartShuffle(selected);
 }
