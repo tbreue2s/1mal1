@@ -16,7 +16,7 @@
   import HomeViewV2 from './components/HomeViewV2.svelte';
   import PracticeViewV2 from './components/PracticeViewV2.svelte';
   import UserModalV2, { type ProfileBackup } from './components/UserModalV2.svelte';
-  import type { WorldChapter } from './lib/chapters';
+  import { buildChapterSessionQueue, type WorldChapter } from './lib/chapters';
   import { themeManager } from './lib/theme.svelte';
 
   type Screen = 'home' | 'practice' | 'matrix' | 'users' | 'legal';
@@ -152,36 +152,11 @@
   }
 
   function startChapterSession(chapter: WorldChapter) {
-    if (gameMode === 'mult' && chapter.rows) {
-      activeSessionQueue = buildSessionQueue(
-        cards,
-        'rows',
-        chapter.rows,
-        stats.typeFilter,
-        stats.sessionSize,
-        'mult',
-        'rows'
-      );
-    } else if (gameMode === 'plusminus' && chapter.pmFocus) {
-      activeSessionQueue = buildSessionQueue(
-        cards,
-        'rows',
-        [],
-        stats.typeFilter,
-        stats.sessionSize,
-        'plusminus',
-        chapter.pmFocus
-      );
-    } else {
-      activeSessionQueue = buildSessionQueue(
-        cards,
-        'daily',
-        [],
-        stats.typeFilter,
-        stats.sessionSize,
-        gameMode
-      );
-    }
+    activeSessionQueue = buildChapterSessionQueue(
+      cards,
+      chapter,
+      stats.sessionSize
+    );
     currentScreen = 'practice';
   }
 

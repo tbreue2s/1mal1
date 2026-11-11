@@ -290,3 +290,130 @@ function computeChapterStats(
     star3Desc,
   };
 }
+
+/**
+ * Erstellt eine intelligente, stufenbasierte Übungsrunde für eine Rechenwelt.
+ * Steigt automatisch mit den verdienten Sternen auf:
+ * - 0 Sterne -> Stufe 1: Grundaufgaben
+ * - 1 Stern  -> Stufe 2: Umkehraufgaben + Wiederholungen
+ * - 2 Sterne -> Stufe 3: Lückenaufgaben & Meisteraufgaben
+ */
+export function buildChapterSessionQueue(
+  allCards: TaskCard[],
+  chapter: WorldChapter,
+  sessionSize = 12
+): TaskCard[] {
+  let relevantCards: TaskCard[] = [];
+
+  if (chapter.rows && chapter.rows.length > 0) {
+    relevantCards = allCards.filter((c) => chapter.rows!.includes(c.row));
+  } else if (chapter.pmFocus) {
+    if (chapter.pmFocus === 'number_bonds_10') {
+      relevantCards = allCards.filter((c) => c.fact[2] === 10);
+    } else if (chapter.pmFocus === 'doubles') {
+      relevantCards = allCards.filter(
+        (c) =>
+          c.fact[0] === c.fact[1] || Math.abs(c.fact[0] - c.fact[1]) === 1
+      );
+    } else if (chapter.pmFocus === 'over_10') {
+      relevantCards = allCards.filter((c) => c.fact[2] > 10);
+    }
+  }
+
+  let primaryTargetCards: TaskCard[] = [];
+  let secondaryCards: TaskCard[] = [];
+
+  if (chapter.pmFocus === 'number_bonds_10') {
+    const gapAdd = relevantCards.filter(
+      (c) => c.type === 'gap_add_a' || c.type === 'gap_add_b'
+    );
+    const sub = relevantCards.filter((c) => c.type === 'sub');
+    const gapSub = relevantCards.filter(
+      (c) => c.type === 'gap_sub_b' || c.type === 'gap_sub_c'
+    );
+
+    if (chapter.stars === 0) {
+      // Stufe 1: Ergänzen zur 10 (3 + ? = 10)
+      primaryTargetCards = gapAdd;
+    } else if (chapter.stars === 1) {
+      // Stufe 2: Subtraktion von 10 (10 - 3 = ?), gemischt mit Ergänzen
+      primaryTargetCards = sub;
+      secondaryCards = gapAdd;
+    } else {
+      // Stufe 3: Minus-Lücken (10 - ? = 3) & volle Mischung
+      primaryTargetCards = gapSub;
+      secondaryCards = [...gapAdd, ...sub];
+    }
+  } else if (chapter.rows) {
+    // 1x1 Welten
+    const mult = relevantCards.filter((c) => c.type === 'mult');
+    const div = relevantCards.filter((c) => c.type === 'div');
+    const gaps = relevantCards.filter((c) => c.type.startsWith('gap_'));
+
+    if (chapter.stars === 0) {
+      primaryTargetCards = mult;
+    } else if (chapter.stars === 1) {
+      primaryTargetCards = div;
+      secondaryCards = mult;
+    } else {
+      primaryTargetCards = gaps;
+      secondaryCards = [...mult, ...div];
+    }
+  } else {
+    // Andere Zahlenheld Welten
+    const add = relevantCards.filter((c) => c.type === 'add');
+    const sub = relevantCards.filter((c) => c.type === 'sub');
+    const gaps = relevantCards.filter((c) => c.type.startsWith('gap_'));
+
+    if (chapter.stars === 0) {
+      primaryTargetCards = add;
+    } else if (chapter.stars === 1) {
+      primaryTargetCards = sub;
+      secondaryCards = add;
+    } else {
+      primaryTargetCards = gaps;
+      secondaryCards = [...add, ...sub];
+    }
+  }
+
+  // Fällige und ungelernte Karten bevorzugen
+  const due = primaryTargetCards.filter(
+    (c) =>
+      c.totalAttempts > 0 &&
+      (c.dueDate <= Date.now() || c.repetitions === 0)
+  );
+  const unlearned = primaryTargetCards.filter((c) => c.totalAttempts === 0);
+  const masteredPrimary = primaryTargetCards.filter(
+    (c) => getCardMastery(c) === 'mastered'
+  );
+
+  const selected: TaskCard[] = [];
+
+  // 1. Fällige Karten des aktuellen Ziellevels
+  selected.push(...due.slice(0, Math.ceil(sessionSize * 0.6)));
+
+  // 2. Ungelernte Karten des aktuellen Ziellevels
+  const neededForNew = sessionSize - selected.length;
+  const shuffledUnlearned = [...unlearned].sort(() => Math.random() - 0.5);
+  selected.push(...shuffledUnlearned.slice(0, neededForNew));
+
+  // 3. Sekundärkarten (vorherige Stufen auffrischen)
+  if (selected.length < sessionSize && secondaryCards.length > 0) {
+    const shuffledSec = [...secondaryCards].sort(() => Math.random() - 0.5);
+    selected.push(...shuffledSec.slice(0, sessionSize - selected.length));
+  }
+
+  // 4. Bereits gemeisterte Karten des Ziellevels
+  if (selected.length < sessionSize && masteredPrimary.length > 0) {
+    const shuffledMastered = [...masteredPrimary].sort(() => Math.random() - 0.5);
+    selected.push(...shuffledMastered.slice(0, sessionSize - selected.length));
+  }
+
+  // 5. Auffüllen mit beliebigen relevanten Karten
+  if (selected.length < sessionSize) {
+    const rest = relevantCards.filter((c) => !selected.includes(c));
+    selected.push(...rest.slice(0, sessionSize - selected.length));
+  }
+
+  return selected.sort(() => Math.random() - 0.5);
+}

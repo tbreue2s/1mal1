@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { getMatrixCellStatus } from '../../lib/sm2';
   import { countDueCards } from '../../lib/storage';
   import type { GameMode, TaskCard, UserProfile, UserStats } from '../../lib/types';
   import { getWorldChapters, type WorldChapter } from '../lib/chapters';
+  import HeatmapV2 from './HeatmapV2.svelte';
 
   interface Props {
     gameMode: GameMode;
@@ -36,68 +36,10 @@
     onOpenLegal,
   }: Props = $props();
 
-  const allRows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-
   let chapters = $derived(getWorldChapters(cards, gameMode));
   let dueCount = $derived(countDueCards(cards, stats.typeFilter, gameMode));
 
-  // Lücken-Drawer Zustand
-  let drawerRow = $state<number | null>(null);
-  let highlightedPair = $state<'doubles' | null>(null);
   let selectedChapter = $state<WorldChapter | null>(null);
-
-  function getRowMasteredPercent(row: number): number {
-    let mastered = 0;
-    for (let a = 1; a <= 10; a++) {
-      const cellCards = cards.filter(
-        (c) => c.fact[0] === a && c.fact[1] === row
-      );
-      if (getMatrixCellStatus(cellCards) === 'mastered') {
-        mastered++;
-      }
-    }
-    return mastered * 10;
-  }
-
-  // Findet die 3 schwächsten Karten einer Reihe für den Drawer
-  let drawerCards = $derived.by(() => {
-    if (drawerRow === null) return [];
-    return cards
-      .filter((c) => c.row === drawerRow)
-      .sort((a, b) => {
-        // Zuerst Karten mit Wiederholungsbedarf
-        if (a.repetitions === 0 && b.repetitions > 0) return -1;
-        if (b.repetitions === 0 && a.repetitions > 0) return 1;
-        if ((a.lastQuality ?? 3) !== (b.lastQuality ?? 3)) {
-          return (a.lastQuality ?? 3) - (b.lastQuality ?? 3);
-        }
-        return a.easeFactor - b.easeFactor;
-      })
-      .slice(0, 3);
-  });
-
-  function getHintForCard(card: TaskCard): string {
-    const [a, b, c] = card.fact;
-    if (gameMode === 'mult') {
-      if (a === 6 && b === 7) return 'Tipp: 5 × 7 = 35, plus 7 = 42';
-      if (a === 7 && b === 8) return 'Eselsbrücke: 5, 6, 7, 8 (56 = 7 × 8)';
-      if (a === 8 && b === 9) return 'Zehner-Trick: 8 × 10 = 80, minus 8 = 72';
-      if (a === b) return `Quadratzahl: ${a} × ${a} = ${c}`;
-      return `Umkehraufgabe denken: ${c} : ${b} = ${a}`;
-    }
-    return `Zehner-Brücke nutzen: ${a} + ${b} = ${c}`;
-  }
-
-  function handleTriggerDoubles() {
-    highlightedPair = highlightedPair === 'doubles' ? null : 'doubles';
-  }
-
-  function handleStartDrawerPractice() {
-    if (drawerCards.length > 0) {
-      onStartCustomSession(drawerCards);
-      drawerRow = null;
-    }
-  }
 </script>
 
 <div class="w-full max-w-lg mx-auto space-y-3.5 pb-8">
@@ -226,7 +168,7 @@
           <span>🗺️</span> <span>Rechenwelten</span>
         </h3>
         <span class="text-[10px] text-slate-400">
-          ⭐ Mal · ⭐⭐ Geteilt · ⭐⭐⭐ Lücken
+          Tippe auf eine Welt für Details &amp; Training
         </span>
       </div>
       <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400">
@@ -261,10 +203,10 @@
               </span>
             </div>
 
-            <div class="font-extrabold text-[11px] text-slate-900 dark:text-slate-100 mt-1.5 leading-snug min-h-[30px] line-clamp-2">
+            <div class="font-extrabold text-[11px] text-slate-900 dark:text-slate-100 mt-1.5 leading-snug break-words hyphens-auto">
               {ch.title}
             </div>
-            <div class="text-[9.5px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
+            <div class="text-[9.5px] text-slate-500 dark:text-slate-400 mt-0.5 break-words">
               {ch.subtitle}
             </div>
           </div>
@@ -288,77 +230,14 @@
     </div>
   </section>
 
-  <!-- 4. REIHEN-STATUS MIT LÜCKENFINDER & DRAWER -->
-  <section class="bg-white dark:bg-[#111827] rounded-2xl p-3.5 border border-slate-200/80 dark:border-slate-800 shadow-xs" aria-label="Reihen-Status">
-    <div class="flex items-center justify-between mb-2">
-      <div>
-        <h3 class="text-xs font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5 m-0">
-          <span>🎯</span> <span>Reihen-Status</span>
-        </h3>
-        <span class="text-[10px] text-slate-400">
-          Tippe auf eine Reihe für Lücken-Details
-        </span>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <button
-          type="button"
-          onclick={handleTriggerDoubles}
-          class="text-[10px] font-bold text-indigo-500 hover:underline bg-transparent border-none p-0 cursor-pointer"
-          title="Verdopplungsreihen hervorheben"
-        >
-          💡 Verdoppeln (2⇄4⇄8)
-        </button>
-        <button
-          type="button"
-          onclick={onOpenMatrix}
-          class="text-[10px] font-bold text-slate-400 hover:text-indigo-500 bg-transparent border-none p-0 cursor-pointer"
-        >
-          10×10 Tafel →
-        </button>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-5 gap-1.5">
-      {#each allRows as r (r)}
-        {@const pct = getRowMasteredPercent(r)}
-        {@const isDouble = [2, 4, 8].includes(r) && highlightedPair === 'doubles'}
-        {@const isWeak = pct > 0 && pct < 60}
-        <button
-          type="button"
-          class="card-press p-2 rounded-xl text-center border transition cursor-pointer {
-            isWeak
-              ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800/60 ring-1 ring-rose-400/30'
-              : isDouble
-              ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-400'
-              : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60'
-          }"
-          onclick={() => (drawerRow = r)}
-        >
-          <span
-            class="text-xs font-bold {
-              isWeak
-                ? 'text-rose-700 dark:text-rose-300'
-                : 'text-slate-800 dark:text-slate-200'
-            }"
-          >
-            {gameMode === 'mult' ? `${r}er` : `+${r}`}
-          </span>
-          <span
-            class="block text-[9px] font-semibold {
-              isWeak
-                ? 'text-rose-600 dark:text-rose-400'
-                : pct >= 90
-                ? 'text-emerald-600 dark:text-emerald-400'
-                : 'text-slate-400 dark:text-slate-400'
-            }"
-          >
-            {pct}% {isWeak ? '⚠️' : ''}
-          </span>
-        </button>
-      {/each}
-    </div>
-  </section>
+  <!-- 4. 10x10 WISSENSKARTE (HEATMAP DIREKT AUF DEM STARTBILDSCHIRM) -->
+  <HeatmapV2
+    {gameMode}
+    {cards}
+    onPracticeFact={onStartCustomSession}
+    onPracticeRow={onStartRowSession}
+    onOpenFullscreen={onOpenMatrix}
+  />
 
   <!-- 5. FOOTER LINKS -->
   <footer class="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 pt-1 px-1 font-medium gap-2">
@@ -382,98 +261,7 @@
   </footer>
 </div>
 
-<!-- 6. LÜCKEN-DRAWER (BOTTOM SHEET) -->
-{#if drawerRow !== null}
-  <div
-    class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-end justify-center p-2"
-    onclick={(e) => {
-      if (e.target === e.currentTarget) drawerRow = null;
-    }}
-    onkeydown={(e) => {
-      if (e.key === 'Escape') drawerRow = null;
-    }}
-    role="dialog"
-    tabindex="-1"
-    aria-modal="true"
-    aria-label="Lücken in Reihe {drawerRow}"
-  >
-    <div class="w-full max-w-md bg-white dark:bg-[#111827] border-t-2 border-x-2 border-slate-200 dark:border-slate-700 rounded-3xl p-4 shadow-2xl animate-slide-up">
-      <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 mb-3">
-        <div class="flex items-center gap-2">
-          <span class="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black text-sm border border-indigo-200 dark:border-indigo-900">
-            {drawerRow}
-          </span>
-          <div>
-            <h4 class="text-sm font-extrabold text-slate-900 dark:text-white m-0">
-              {gameMode === 'mult' ? `${drawerRow}er-Reihe Details` : `+${drawerRow} Aufgaben Details`}
-            </h4>
-            <p class="text-[11px] text-slate-400 m-0">
-              Gemeistert: {getRowMasteredPercent(drawerRow)}% · Schwächste Karten
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onclick={() => (drawerRow = null)}
-          class="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs font-bold border-none cursor-pointer flex items-center justify-center"
-        >
-          ✕
-        </button>
-      </div>
-
-      <div class="space-y-1.5 mb-3 text-xs">
-        {#each drawerCards as card (card.id)}
-          <div class="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
-            <div>
-              <span class="font-extrabold text-slate-900 dark:text-white">
-                {card.prompt}
-              </span>
-              <span class="text-[10px] text-slate-400 block">
-                {getHintForCard(card)}
-              </span>
-            </div>
-            <span
-              class="text-[11px] font-bold"
-              class:text-rose-500={card.repetitions === 0}
-              class:text-amber-500={card.repetitions > 0 && card.repetitions < 2}
-              class:text-emerald-500={card.repetitions >= 2}
-            >
-              {card.repetitions === 0
-                ? 'Wiederholen'
-                : card.repetitions < 2
-                  ? 'Am Lernen'
-                  : 'Sicher ✓'}
-            </span>
-          </div>
-        {/each}
-      </div>
-
-      <div class="flex items-center gap-2">
-        <button
-          type="button"
-          onclick={handleStartDrawerPractice}
-          class="flex-1 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-extrabold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition btn-calm-primary cursor-pointer border-none"
-        >
-          <span>⚡</span>
-          <span>Nur diese Lücken üben (3 Min.)</span>
-        </button>
-        <button
-          type="button"
-          onclick={() => {
-            const r = drawerRow;
-            drawerRow = null;
-            if (r !== null) onStartRowSession(r);
-          }}
-          class="px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-bold border-none cursor-pointer"
-        >
-          Ganze Reihe
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
-
-<!-- 7. KAPITEL-DRAWER (TRANSPARENTE STERNE-ÜBERSICHT) -->
+<!-- 6. KAPITEL-DRAWER (TRANSPARENTE STERNE-ÜBERSICHT) -->
 {#if selectedChapter !== null}
   <div
     class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-3"
