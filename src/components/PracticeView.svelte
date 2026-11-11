@@ -211,7 +211,7 @@
   }
 </script>
 
-<div class="w-full max-w-md mx-auto space-y-4 pb-8">
+<div class="w-full max-w-md landscape:max-w-3xl mx-auto space-y-3 sm:space-y-4 pb-6">
   {#if !sessionFinished && currentCard && equationParts}
     <!-- Top Nav: Abbruch, Fortschritt & Zeit -->
     <div class="flex items-center justify-between gap-3 text-xs">
@@ -235,82 +235,87 @@
       </div>
     </div>
 
-    <!-- Große Aufgabenkarte -->
-    <div
-      class="bg-white dark:bg-[#111827] rounded-3xl p-6 border-2 shadow-sm text-center relative transition-all duration-200 {
-        feedbackState === 'correct'
-          ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20'
-          : feedbackState === 'wrong'
-          ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/20'
-          : 'border-slate-200 dark:border-slate-800'
-      }"
-    >
-      <div class="flex items-center justify-center gap-2 mb-3">
-        <span class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-          {equationParts.typeBadge}
-        </span>
-        {#if currentCard && retryCardIds.has(currentCard.id) && currentIndex >= initialQueue.length}
-          <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-            🔁 Wiederholung
+    <!-- Aufgabenkarte & Keypad: In Portrait gestapelt, in Landscape 2 Spalten -->
+    <div class="landscape:grid landscape:grid-cols-2 landscape:gap-4 landscape:items-center">
+      <!-- Große Aufgabenkarte -->
+      <div
+        class="bg-white dark:bg-[#111827] rounded-3xl p-5 sm:p-6 border-2 shadow-sm text-center relative transition-all duration-200 {
+          feedbackState === 'correct'
+            ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20'
+            : feedbackState === 'wrong'
+            ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/20'
+            : 'border-slate-200 dark:border-slate-800'
+        }"
+      >
+        <div class="flex items-center justify-center gap-2 mb-2 sm:mb-3">
+          <span class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+            {equationParts.typeBadge}
           </span>
-        {/if}
-      </div>
-
-      <!-- Gleichung mit Eingabefeld -->
-      <div class="flex items-center justify-center gap-2 text-3xl sm:text-4xl font-black text-slate-900 dark:text-white my-4 select-none">
-        {#if equationParts.left}
-          <span>{equationParts.left}</span>
-        {/if}
-
-        <div
-          class="min-w-16 px-3 py-1 rounded-2xl border-2 text-center transition-all {
-            feedbackState === 'correct'
-              ? 'border-emerald-500 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
-              : feedbackState === 'wrong'
-              ? 'border-rose-500 bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300'
-              : 'border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/40 text-slate-900 dark:text-white'
-          }"
-        >
-          {inputDigits || '?'}
+          {#if currentCard && retryCardIds.has(currentCard.id) && currentIndex >= initialQueue.length}
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+              🔁 Wiederholung
+            </span>
+          {/if}
         </div>
 
-        {#if equationParts.right}
-          <span>{equationParts.right}</span>
-        {/if}
-      </div>
+        <!-- Gleichung mit Eingabefeld -->
+        <div class="flex items-center justify-center gap-2 text-3xl sm:text-4xl font-black text-slate-900 dark:text-white my-3 sm:my-4 select-none">
+          {#if equationParts.left}
+            <span>{equationParts.left}</span>
+          {/if}
 
-      <!-- Feedback Meldung -->
-      {#if feedbackState !== 'idle'}
-        <div class="mt-3 animate-fade-in">
           <div
-            class="text-sm font-black"
-            class:text-emerald-600={feedbackState === 'correct'}
-            class:dark:text-emerald-400={feedbackState === 'correct'}
-            class:text-rose-600={feedbackState === 'wrong'}
-            class:dark:text-rose-400={feedbackState === 'wrong'}
+            class="min-w-16 px-3 py-1 rounded-2xl border-2 text-center transition-all {
+              feedbackState === 'correct'
+                ? 'border-emerald-500 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
+                : feedbackState === 'wrong'
+                ? 'border-rose-500 bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300'
+                : 'border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/40 text-slate-900 dark:text-white'
+            }"
           >
-            {feedbackTitle}
+            {inputDigits || '?'}
           </div>
-          <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            {feedbackSubtitle}
-          </div>
-        </div>
-      {:else}
-        <div class="text-xs text-slate-400 mt-2">
-          Gib das Ergebnis ein und tippe auf Prüfen
-        </div>
-      {/if}
-    </div>
 
-    <!-- Ziffernblock -->
-    <Keypad
-      disabled={feedbackState !== 'idle'}
-      {canSubmit}
-      {canDelete}
-      onDigit={handleDigit}
-      onDelete={handleDelete}
-      onSubmit={handleSubmit}
-    />
+          {#if equationParts.right}
+            <span>{equationParts.right}</span>
+          {/if}
+        </div>
+
+        <!-- Feedback Meldung -->
+        {#if feedbackState !== 'idle'}
+          <div class="mt-2.5 sm:mt-3 animate-fade-in">
+            <div
+              class="text-sm font-black"
+              class:text-emerald-600={feedbackState === 'correct'}
+              class:dark:text-emerald-400={feedbackState === 'correct'}
+              class:text-rose-600={feedbackState === 'wrong'}
+              class:dark:text-rose-400={feedbackState === 'wrong'}
+            >
+              {feedbackTitle}
+            </div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {feedbackSubtitle}
+            </div>
+          </div>
+        {:else}
+          <div class="text-xs text-slate-400 mt-1.5 sm:mt-2">
+            Gib das Ergebnis ein und tippe auf Prüfen
+          </div>
+        {/if}
+      </div>
+
+      <!-- Ziffernblock -->
+      <div class="mt-3 landscape:mt-0">
+        <Keypad
+          disabled={feedbackState !== 'idle'}
+          {canSubmit}
+          {canDelete}
+          onDigit={handleDigit}
+          onDelete={handleDelete}
+          onSubmit={handleSubmit}
+        />
+      </div>
+    </div>
   {:else if sessionFinished}
     <!-- RUNDEN-ABSCHLUSS MODAL -->
     <div class="bg-white dark:bg-[#111827] rounded-3xl p-6 border-2 border-slate-200 dark:border-slate-800 text-center shadow-lg space-y-4">

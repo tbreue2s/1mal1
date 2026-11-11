@@ -175,7 +175,7 @@
 </script>
 
 <div
-  class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-3"
+  class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 overflow-y-auto flex items-center justify-center p-2 sm:p-4"
   onclick={(e) => {
     if (e.target === e.currentTarget) onClose();
   }}
@@ -187,9 +187,9 @@
   aria-modal="true"
   aria-label="Optionen & Nutzer"
 >
-  <div class="w-full max-w-md bg-white dark:bg-[#111827] border-2 border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-2xl max-h-[90dvh] overflow-y-auto custom-scroll text-slate-800 dark:text-slate-100">
-    <!-- Header -->
-    <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
+  <div class="w-full max-w-md my-auto bg-white dark:bg-[#111827] border-2 border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl flex flex-col text-slate-800 dark:text-slate-100 max-h-[92vh] max-h-[92dvh] overflow-hidden">
+    <!-- Pinned Header (immer erreichbar, auch bei geöffneter Bildschirmtastatur) -->
+    <div class="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-[#111827] shrink-0">
       <div>
         <h3 class="text-base font-black m-0 text-slate-900 dark:text-white">Optionen &amp; Nutzer</h3>
         <p class="text-[11px] text-slate-400 m-0">Darstellung, Didaktik &amp; Profile</p>
@@ -197,13 +197,17 @@
       <button
         type="button"
         onclick={onClose}
-        class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white text-xs font-bold border-none cursor-pointer flex items-center justify-center"
+        class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200 text-sm font-black border-none cursor-pointer flex items-center justify-center transition shadow-2xs"
+        title="Schließen & zum Hauptscreen zurückkehren"
+        aria-label="Schließen"
       >
         ✕
       </button>
     </div>
 
-    <!-- 1. THEME SWITCHER (SYSTEM / HELL / DUNKEL) -->
+    <!-- Scrollable Body -->
+    <div class="p-5 overflow-y-auto space-y-4 custom-scroll flex-1">
+      <!-- 1. THEME SWITCHER (SYSTEM / HELL / DUNKEL) -->
     <section class="mb-4 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800">
       <span class="text-xs font-black text-slate-700 dark:text-slate-200 block mb-2">
         🎨 App-Erscheinungsbild:
@@ -372,17 +376,15 @@
               🔥 Streak
             </button>
 
-            <!-- EXPORT-BUTTON FÜR DIESEN NUTZER -->
-            {#if isDevelop}
-              <button
-                type="button"
-                onclick={() => downloadProfileBackup(prof)}
-                class="px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800 text-[11px] font-extrabold text-indigo-700 dark:text-indigo-300 cursor-pointer flex items-center gap-1 transition shadow-2xs"
-                title="Profil '{prof.name}' als Datei exportieren (Backup)"
-              >
-                <span>💾</span> <span>Export</span>
-              </button>
-            {/if}
+            <!-- EXPORT-BUTTON FÜR DIESEN NUTZER (PRODUKTIV FÜR ALLE) -->
+            <button
+              type="button"
+              onclick={() => downloadProfileBackup(prof)}
+              class="px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800 text-[11px] font-extrabold text-indigo-700 dark:text-indigo-300 cursor-pointer flex items-center gap-1 transition shadow-2xs"
+              title="Profil '{prof.name}' als Datei exportieren (Backup)"
+            >
+              <span>💾</span> <span>Export</span>
+            </button>
 
             {#if lastBackup && lastBackup.profileId === prof.id}
               <button
@@ -418,48 +420,70 @@
             {/if}
           </div>
 
-          <!-- Inline Name-Editor -->
+          <!-- Inline Name-Editor (Optimiert für Tablets: Buttons immer sichtbar, Enter-Taste speichert) -->
           {#if editingNameProfileId === prof.id}
-            <div class="mt-2.5 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs space-y-2">
-              <input
-                type="text"
-                maxlength="20"
-                bind:value={editNameInput}
-                class="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-bold"
-                placeholder="Name"
-              />
-              <div class="flex items-center gap-1.5 flex-wrap">
-                {#each AVAILABLE_AVATARS as av (av)}
-                  <button
-                    type="button"
-                    onclick={() => (editAvatarInput = av)}
-                    class="p-1 rounded-lg text-lg border cursor-pointer {
-                      editAvatarInput === av
-                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60'
-                        : 'border-transparent bg-slate-100 dark:bg-slate-800'
-                    }"
-                  >
-                    {av}
-                  </button>
-                {/each}
+            <form
+              onsubmit={(e) => {
+                e.preventDefault();
+                saveProfileEdit(prof.id);
+              }}
+              class="mt-2.5 p-3 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/40 border-2 border-indigo-500 text-xs space-y-2.5 animate-slide-up"
+            >
+              <div class="flex items-center justify-between">
+                <span class="font-black text-indigo-950 dark:text-indigo-200 text-xs">
+                  ✏️ Name &amp; Tier-Icon anpassen:
+                </span>
+                <span class="text-2xl">{editAvatarInput}</span>
               </div>
-              <div class="flex items-center gap-2">
+
+              <!-- Eingabezeile mit direkt sichtbaren Buttons -->
+              <div class="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  maxlength="20"
+                  bind:value={editNameInput}
+                  class="flex-1 p-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-xs"
+                  placeholder="Name des Kindes"
+                />
                 <button
-                  type="button"
-                  onclick={() => saveProfileEdit(prof.id)}
-                  class="flex-1 py-1.5 rounded-lg bg-indigo-600 text-white font-bold text-xs border-none cursor-pointer"
+                  type="submit"
+                  disabled={!editNameInput.trim()}
+                  class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-black text-xs border-none cursor-pointer transition shadow-xs whitespace-nowrap"
                 >
-                  Speichern
+                  ✓ Speichern
                 </button>
                 <button
                   type="button"
                   onclick={() => (editingNameProfileId = null)}
-                  class="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs border-none cursor-pointer"
+                  class="px-2.5 py-2 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold text-xs border-none cursor-pointer transition"
+                  title="Abbrechen"
                 >
-                  Abbrechen
+                  ✕
                 </button>
               </div>
-            </div>
+
+              <!-- Tier-Icon Auswahl direkt darunter -->
+              <div class="space-y-1 pt-1.5 border-t border-indigo-200/50 dark:border-indigo-900/50">
+                <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">
+                  Anderes Tier-Icon wählen:
+                </span>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  {#each AVAILABLE_AVATARS as av (av)}
+                    <button
+                      type="button"
+                      onclick={() => (editAvatarInput = av)}
+                      class="w-7 h-7 rounded-lg text-base border cursor-pointer flex items-center justify-center transition {
+                        editAvatarInput === av
+                          ? 'border-indigo-500 bg-indigo-100 dark:bg-indigo-900/80 shadow-2xs scale-105'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
+                      }"
+                    >
+                      {av}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            </form>
           {/if}
 
           <!-- Inline Streak-Editor -->
@@ -591,107 +615,105 @@
         </div>
       {/each}
 
-      <!-- EXPORT & IMPORT BEREICH (nur in develop aktiv) -->
-      {#if isDevelop}
-        <div class="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/70 dark:border-indigo-900/50 text-xs space-y-2.5">
-          <div class="flex items-center justify-between">
-            <span class="font-extrabold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5 text-xs">
-              <span>💾</span> <span>Profil sichern &amp; übertragen</span>
-            </span>
-            <span class="text-[9px] font-black bg-indigo-200 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 px-1.5 py-0.5 rounded-full uppercase">
-              Neu
-            </span>
-          </div>
-          <p class="text-[11px] text-slate-600 dark:text-slate-400 m-0">
-            Exportiere ein Profil (per Klick auf 💾 Export beim Profil) als Datei oder spiele ein gesichertes Profil auf einem neuen Gerät ein.
-          </p>
+      <!-- EXPORT & IMPORT BEREICH (PRODUKTIV FÜR ALLE) -->
+      <div class="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/70 dark:border-indigo-900/50 text-xs space-y-2.5">
+        <div class="flex items-center justify-between">
+          <span class="font-extrabold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5 text-xs">
+            <span>💾</span> <span>Profil sichern &amp; übertragen</span>
+          </span>
+          <span class="text-[9px] font-black bg-indigo-200 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 px-1.5 py-0.5 rounded-full uppercase">
+            Backup
+          </span>
+        </div>
+        <p class="text-[11px] text-slate-600 dark:text-slate-400 m-0">
+          Exportiere ein Profil (per Klick auf 💾 Export beim Profil) als Datei oder spiele ein gesichertes Profil auf einem neuen Gerät ein.
+        </p>
 
-          <div class="flex items-center gap-2 pt-0.5">
+        <div class="flex items-center gap-2 pt-0.5">
+          <button
+            type="button"
+            onclick={() => fileInputEl?.click()}
+            class="w-full py-2 px-3 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition shadow-2xs"
+          >
+            <span>📥</span> <span>Profil-Datei importieren (.json / .txt)…</span>
+          </button>
+          <input
+            type="file"
+            accept=".json,.txt,application/json,text/plain"
+            bind:this={fileInputEl}
+            onchange={handleFileSelected}
+            class="hidden"
+          />
+        </div>
+
+        {#if importStatusMessage}
+          <div
+            class="p-2.5 rounded-xl text-xs font-bold transition flex items-start justify-between gap-2 {
+              importStatusType === 'success'
+                ? 'bg-emerald-100/80 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800'
+                : 'bg-rose-100/80 dark:bg-rose-950/50 text-rose-800 dark:text-rose-200 border border-rose-300 dark:border-rose-800'
+            }"
+          >
+            <span>{importStatusMessage}</span>
             <button
               type="button"
-              onclick={() => fileInputEl?.click()}
-              class="w-full py-2 px-3 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition shadow-2xs"
+              onclick={() => (importStatusMessage = null)}
+              class="text-xs bg-transparent border-none cursor-pointer opacity-70 hover:opacity-100"
             >
-              <span>📥</span> <span>Profil-Datei importieren (.json / .txt)…</span>
+              ✕
             </button>
-            <input
-              type="file"
-              accept=".json,.txt,application/json,text/plain"
-              bind:this={fileInputEl}
-              onchange={handleFileSelected}
-              class="hidden"
-            />
           </div>
+        {/if}
 
-          {#if importStatusMessage}
-            <div
-              class="p-2.5 rounded-xl text-xs font-bold transition flex items-start justify-between gap-2 {
-                importStatusType === 'success'
-                  ? 'bg-emerald-100/80 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800'
-                  : 'bg-rose-100/80 dark:bg-rose-950/50 text-rose-800 dark:text-rose-200 border border-rose-300 dark:border-rose-800'
-              }"
-            >
-              <span>{importStatusMessage}</span>
-              <button
-                type="button"
-                onclick={() => (importStatusMessage = null)}
-                class="text-xs bg-transparent border-none cursor-pointer opacity-70 hover:opacity-100"
-              >
-                ✕
-              </button>
-            </div>
-          {/if}
-
-          {#if pendingImportProfile}
-            <div class="p-3 rounded-xl bg-white dark:bg-slate-900 border-2 border-indigo-500 space-y-2 animate-slide-up">
-              <div class="flex items-center gap-2">
-                <span class="text-2xl">{pendingImportProfile.avatar}</span>
-                <div>
-                  <div class="font-black text-slate-900 dark:text-white">
-                    {pendingImportProfile.name}
-                  </div>
-                  <div class="text-[10px] text-slate-500 dark:text-slate-400">
-                    ⭐ {pendingImportProfile.stats.stars + pendingImportProfile.plusMinusStats.stars} Sterne · 🔥 {Math.max(pendingImportProfile.stats.streakDays, pendingImportProfile.plusMinusStats.streakDays)} Tage Streak
-                  </div>
+        {#if pendingImportProfile}
+          <div class="p-3 rounded-xl bg-white dark:bg-slate-900 border-2 border-indigo-500 space-y-2 animate-slide-up">
+            <div class="flex items-center gap-2">
+              <span class="text-2xl">{pendingImportProfile.avatar}</span>
+              <div>
+                <div class="font-black text-slate-900 dark:text-white">
+                  {pendingImportProfile.name}
+                </div>
+                <div class="text-[10px] text-slate-500 dark:text-slate-400">
+                  ⭐ {pendingImportProfile.stats.stars + pendingImportProfile.plusMinusStats.stars} Sterne · 🔥 {Math.max(pendingImportProfile.stats.streakDays, pendingImportProfile.plusMinusStats.streakDays)} Tage Streak
                 </div>
               </div>
-
-              <p class="text-[11px] text-slate-600 dark:text-slate-300 m-0">
-                Gültiges Profil gefunden. Wie möchtest du es einbinden?
-              </p>
-
-              <div class="flex items-center gap-2 pt-1 flex-wrap">
-                <button
-                  type="button"
-                  onclick={confirmImportAsNew}
-                  class="flex-1 py-1.5 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs border-none cursor-pointer transition shadow-2xs"
-                >
-                  ➕ Als neues Profil
-                </button>
-
-                {#if existingMatchProfile}
-                  <button
-                    type="button"
-                    onclick={confirmImportOverwrite}
-                    class="py-1.5 px-2.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs border-none cursor-pointer transition shadow-2xs"
-                    title="Bestehendes Profil mit identischem Namen überschreiben"
-                  >
-                    ⚠️ '{existingMatchProfile.name}' ersetzen
-                  </button>
-                {/if}
-
-                <button
-                  type="button"
-                  onclick={cancelPendingImport}
-                  class="py-1.5 px-2.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs border-none cursor-pointer"
-                >
-                  Abbrechen
-                </button>
-              </div>
             </div>
-          {/if}
-        </div>
-      {/if}
+
+            <p class="text-[11px] text-slate-600 dark:text-slate-300 m-0">
+              Gültiges Profil gefunden. Wie möchtest du es einbinden?
+            </p>
+
+            <div class="flex items-center gap-2 pt-1 flex-wrap">
+              <button
+                type="button"
+                onclick={confirmImportAsNew}
+                class="flex-1 py-1.5 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs border-none cursor-pointer transition shadow-2xs"
+              >
+                ➕ Als neues Profil
+              </button>
+
+              {#if existingMatchProfile}
+                <button
+                  type="button"
+                  onclick={confirmImportOverwrite}
+                  class="py-1.5 px-2.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs border-none cursor-pointer transition shadow-2xs"
+                  title="Bestehendes Profil mit identischem Namen überschreiben"
+                >
+                  ⚠️ '{existingMatchProfile.name}' ersetzen
+                </button>
+              {/if}
+
+              <button
+                type="button"
+                onclick={cancelPendingImport}
+                class="py-1.5 px-2.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs border-none cursor-pointer"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        {/if}
+      </div>
 
       <!-- Neuen Spieler hinzufügen mit direkter Icon-Auswahl -->
       <form
@@ -745,7 +767,10 @@
         </div>
       </form>
     </section>
+  </div>
 
+  <!-- Pinned Footer (immer erreichbar) -->
+  <div class="px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#111827] shrink-0 space-y-1.5">
     <button
       type="button"
       onclick={onClose}
@@ -754,7 +779,7 @@
       Fertig &amp; Schließen
     </button>
 
-    <div class="text-center pt-1 pb-1 space-y-1">
+    <div class="text-center pt-0.5 space-y-0.5">
       {#if isDevelop}
         <div>
           <a
@@ -775,4 +800,5 @@
       </div>
     </div>
   </div>
+</div>
 </div>

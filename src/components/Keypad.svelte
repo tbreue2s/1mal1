@@ -229,4 +229,21 @@
     margin-top: 1px;
     text-transform: uppercase;
   }
+
+  @media (orientation: landscape) and (max-height: 600px) {
+    .key-btn {
+      min-height: 44px;
+      font-size: 1.25rem;
+      border-radius: 12px;
+    }
+    .keypad-grid {
+      gap: 6px;
+    }
+    .key-icon {
+      font-size: 1.15rem;
+    }
+    .key-sub {
+      font-size: 0.6rem;
+    }
+  }
 </style>
