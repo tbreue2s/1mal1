@@ -1,5 +1,9 @@
 <script lang="ts">
-  import { AVAILABLE_AVATARS } from '../lib/storage';
+  import {
+    AVAILABLE_AVATARS,
+    downloadProfileBackup,
+    parseAndValidateProfileJson,
+  } from '../lib/storage';
   import type { GameMode, TypeFilter, UserProfile } from '../lib/types';
   import { themeManager, type ThemeMode } from '../lib/theme.svelte';
 
@@ -16,12 +20,14 @@
     gameMode: GameMode;
     typeFilter: TypeFilter;
     lastBackup?: ProfileBackup | null;
+    isDevelop?: boolean;
     onSelectProfile: (id: string) => void;
     onCreateProfile: (name: string, avatar: string) => void;
     onUpdateProfile: (id: string, name: string, avatar: string) => void;
     onDeleteProfile: (id: string) => void;
     onResetProfile: (id: string, targetMode: GameMode | 'both') => void;
     onRestoreBackup?: (id: string) => void;
+    onImportProfile?: (profile: UserProfile, overwriteId?: string) => void;
     onSetManualStreak: (id: string, streakDays: number, targetMode: GameMode) => void;
     onSetGameMode: (id: string, mode: GameMode) => void;
     onSetTypeFilter: (filter: TypeFilter) => void;
@@ -34,12 +40,14 @@
     gameMode,
     typeFilter,
     lastBackup = null,
+    isDevelop = false,
     onSelectProfile,
     onCreateProfile,
     onUpdateProfile,
     onDeleteProfile,
     onResetProfile,
     onRestoreBackup,
+    onImportProfile,
     onSetManualStreak,
     onSetGameMode,
     onSetTypeFilter,
@@ -58,6 +66,67 @@
 
   let confirmResetId = $state<string | null>(null);
   let confirmDeleteId = $state<string | null>(null);
+
+  // Export / Import State
+  let fileInputEl = $state<HTMLInputElement | null>(null);
+  let importStatusMessage = $state<string | null>(null);
+  let importStatusType = $state<'success' | 'error'>('success');
+  let pendingImportProfile = $state<UserProfile | null>(null);
+
+  let existingMatchProfile = $derived(
+    pendingImportProfile
+      ? profiles.find(
+          (p) =>
+            p.name.trim().toLowerCase() ===
+            pendingImportProfile!.name.trim().toLowerCase()
+        )
+      : null
+  );
+
+  async function handleFileSelected(event: Event) {
+    const target = event.currentTarget as HTMLInputElement;
+    const file = target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const res = parseAndValidateProfileJson(text);
+      if (!res.success || !res.profile) {
+        importStatusType = 'error';
+        importStatusMessage = res.error ?? 'Fehler beim Lesen der Datei.';
+        pendingImportProfile = null;
+      } else {
+        pendingImportProfile = res.profile;
+        importStatusMessage = null;
+      }
+    } catch {
+      importStatusType = 'error';
+      importStatusMessage = 'Datei konnte nicht gelesen werden.';
+      pendingImportProfile = null;
+    } finally {
+      target.value = '';
+    }
+  }
+
+  function confirmImportAsNew() {
+    if (!pendingImportProfile) return;
+    onImportProfile?.(pendingImportProfile);
+    importStatusType = 'success';
+    importStatusMessage = `Profil "${pendingImportProfile.name}" erfolgreich importiert!`;
+    pendingImportProfile = null;
+  }
+
+  function confirmImportOverwrite() {
+    if (!pendingImportProfile || !existingMatchProfile) return;
+    onImportProfile?.(pendingImportProfile, existingMatchProfile.id);
+    importStatusType = 'success';
+    importStatusMessage = `Profil "${existingMatchProfile.name}" erfolgreich aktualisiert!`;
+    pendingImportProfile = null;
+  }
+
+  function cancelPendingImport() {
+    pendingImportProfile = null;
+  }
 
   function handleAddProfile(event: SubmitEvent) {
     event.preventDefault();
@@ -303,6 +372,18 @@
               🔥 Streak
             </button>
 
+            <!-- EXPORT-BUTTON FÜR DIESEN NUTZER -->
+            {#if isDevelop}
+              <button
+                type="button"
+                onclick={() => downloadProfileBackup(prof)}
+                class="px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800 text-[11px] font-extrabold text-indigo-700 dark:text-indigo-300 cursor-pointer flex items-center gap-1 transition shadow-2xs"
+                title="Profil '{prof.name}' als Datei exportieren (Backup)"
+              >
+                <span>💾</span> <span>Export</span>
+              </button>
+            {/if}
+
             {#if lastBackup && lastBackup.profileId === prof.id}
               <button
                 type="button"
@@ -510,6 +591,108 @@
         </div>
       {/each}
 
+      <!-- EXPORT & IMPORT BEREICH (nur in develop aktiv) -->
+      {#if isDevelop}
+        <div class="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/70 dark:border-indigo-900/50 text-xs space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5 text-xs">
+              <span>💾</span> <span>Profil sichern &amp; übertragen</span>
+            </span>
+            <span class="text-[9px] font-black bg-indigo-200 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 px-1.5 py-0.5 rounded-full uppercase">
+              Neu
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-600 dark:text-slate-400 m-0">
+            Exportiere ein Profil (per Klick auf 💾 Export beim Profil) als Datei oder spiele ein gesichertes Profil auf einem neuen Gerät ein.
+          </p>
+
+          <div class="flex items-center gap-2 pt-0.5">
+            <button
+              type="button"
+              onclick={() => fileInputEl?.click()}
+              class="w-full py-2 px-3 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition shadow-2xs"
+            >
+              <span>📥</span> <span>Profil-Datei importieren (.json / .txt)…</span>
+            </button>
+            <input
+              type="file"
+              accept=".json,.txt,application/json,text/plain"
+              bind:this={fileInputEl}
+              onchange={handleFileSelected}
+              class="hidden"
+            />
+          </div>
+
+          {#if importStatusMessage}
+            <div
+              class="p-2.5 rounded-xl text-xs font-bold transition flex items-start justify-between gap-2 {
+                importStatusType === 'success'
+                  ? 'bg-emerald-100/80 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800'
+                  : 'bg-rose-100/80 dark:bg-rose-950/50 text-rose-800 dark:text-rose-200 border border-rose-300 dark:border-rose-800'
+              }"
+            >
+              <span>{importStatusMessage}</span>
+              <button
+                type="button"
+                onclick={() => (importStatusMessage = null)}
+                class="text-xs bg-transparent border-none cursor-pointer opacity-70 hover:opacity-100"
+              >
+                ✕
+              </button>
+            </div>
+          {/if}
+
+          {#if pendingImportProfile}
+            <div class="p-3 rounded-xl bg-white dark:bg-slate-900 border-2 border-indigo-500 space-y-2 animate-slide-up">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">{pendingImportProfile.avatar}</span>
+                <div>
+                  <div class="font-black text-slate-900 dark:text-white">
+                    {pendingImportProfile.name}
+                  </div>
+                  <div class="text-[10px] text-slate-500 dark:text-slate-400">
+                    ⭐ {pendingImportProfile.stats.stars + pendingImportProfile.plusMinusStats.stars} Sterne · 🔥 {Math.max(pendingImportProfile.stats.streakDays, pendingImportProfile.plusMinusStats.streakDays)} Tage Streak
+                  </div>
+                </div>
+              </div>
+
+              <p class="text-[11px] text-slate-600 dark:text-slate-300 m-0">
+                Gültiges Profil gefunden. Wie möchtest du es einbinden?
+              </p>
+
+              <div class="flex items-center gap-2 pt-1 flex-wrap">
+                <button
+                  type="button"
+                  onclick={confirmImportAsNew}
+                  class="flex-1 py-1.5 px-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs border-none cursor-pointer transition shadow-2xs"
+                >
+                  ➕ Als neues Profil
+                </button>
+
+                {#if existingMatchProfile}
+                  <button
+                    type="button"
+                    onclick={confirmImportOverwrite}
+                    class="py-1.5 px-2.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs border-none cursor-pointer transition shadow-2xs"
+                    title="Bestehendes Profil mit identischem Namen überschreiben"
+                  >
+                    ⚠️ '{existingMatchProfile.name}' ersetzen
+                  </button>
+                {/if}
+
+                <button
+                  type="button"
+                  onclick={cancelPendingImport}
+                  class="py-1.5 px-2.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs border-none cursor-pointer"
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          {/if}
+        </div>
+      {/if}
+
       <!-- Neuen Spieler hinzufügen mit direkter Icon-Auswahl -->
       <form
         onsubmit={handleAddProfile}
@@ -571,13 +754,25 @@
       Fertig &amp; Schließen
     </button>
 
-    <div class="text-center pt-1 pb-1">
-      <a
-        href="./v1/"
-        class="text-[11px] text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium hover:underline inline-block"
-      >
-        Zur klassischen Version (v1) wechseln ›
-      </a>
+    <div class="text-center pt-1 pb-1 space-y-1">
+      {#if isDevelop}
+        <div>
+          <a
+            href="../"
+            class="text-[11px] text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium hover:underline inline-block"
+          >
+            ‹ Zurück zur Produktiv-Version
+          </a>
+        </div>
+      {/if}
+      <div>
+        <a
+          href={isDevelop ? "../v1/" : "./v1/"}
+          class="text-[11px] text-slate-400 hover:text-slate-500 dark:text-slate-500 font-medium hover:underline inline-block"
+        >
+          Zur klassischen Version (v1) wechseln ›
+        </a>
+      </div>
     </div>
   </div>
 </div>

@@ -425,6 +425,158 @@ export function saveLogoVariant(variant: LogoVariantId): void {
   }
 }
 
+export interface ProfileImportResult {
+  success: boolean;
+  profile?: UserProfile;
+  error?: string;
+  sourceSummary?: {
+    name: string;
+    avatar: string;
+    starsMult: number;
+    starsPlusMinus: number;
+    streakMult: number;
+    streakPlusMinus: number;
+    totalSolved: number;
+  };
+}
+
+/**
+ * Erstellt einen formatierten JSON-String für den Export eines einzelnen Nutzerprofils.
+ */
+export function exportUserProfile(profile: UserProfile): string {
+  const exportData = {
+    format: '1mal1-profile-backup',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    appName: '1×1 Meister & Zahlen-Held',
+    profile: {
+      id: profile.id,
+      name: profile.name,
+      avatar: profile.avatar,
+      logoVariant: profile.logoVariant,
+      activeGameMode: profile.activeGameMode ?? 'mult',
+      createdAt: profile.createdAt,
+      stats: profile.stats,
+      cards: profile.cards,
+      plusMinusStats: profile.plusMinusStats,
+      plusMinusCards: profile.plusMinusCards,
+    },
+  };
+  return JSON.stringify(exportData, null, 2);
+}
+
+/**
+ * Löst im Browser den Download einer JSON-Backupdatei für das gegebene Profil aus.
+ */
+export function downloadProfileBackup(profile: UserProfile): void {
+  if (typeof window === 'undefined') return;
+  const jsonStr = exportUserProfile(profile);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const safeName =
+    profile.name
+      .toLowerCase()
+      .replace(/[^a-z0-9äöüß_-]/gi, '_')
+      .replace(/_+/g, '_') || 'spieler';
+  const dateStr = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `1mal1_profil_${safeName}_${dateStr}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Liest und validiert eine JSON- oder Textdatei für den Nutzer-Import.
+ * Unterstützt Backups mit Wrapper ({ format, profile }) sowie Rohprofile.
+ */
+export function parseAndValidateProfileJson(rawText: string): ProfileImportResult {
+  if (!rawText || !rawText.trim()) {
+    return { success: false, error: 'Die ausgewählte Datei ist leer.' };
+  }
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(rawText.trim());
+  } catch {
+    return {
+      success: false,
+      error: 'Ungültiges Dateiformat. Bitte wähle eine gültige JSON- oder Backup-Datei.',
+    };
+  }
+
+  const profileCandidate: Partial<UserProfile> =
+    parsed && typeof parsed === 'object' && parsed.profile && typeof parsed.profile === 'object'
+      ? parsed.profile
+      : parsed;
+
+  if (!profileCandidate || typeof profileCandidate !== 'object') {
+    return {
+      success: false,
+      error: 'In der Datei konnten keine Profil-Daten gefunden werden.',
+    };
+  }
+
+  const hasName =
+    typeof profileCandidate.name === 'string' && profileCandidate.name.trim().length > 0;
+  const hasStats = Boolean(profileCandidate.stats || profileCandidate.plusMinusStats);
+  const hasCards =
+    Array.isArray(profileCandidate.cards) || Array.isArray(profileCandidate.plusMinusCards);
+
+  if (!hasName && !hasStats && !hasCards) {
+    return {
+      success: false,
+      error:
+        'Die Datei enthält kein kompatibles Nutzerprofil (Name, Fortschritte oder Karten fehlen).',
+    };
+  }
+
+  const name = hasName ? (profileCandidate.name as string).trim() : 'Importierter Nutzer';
+  const avatar =
+    typeof profileCandidate.avatar === 'string' && profileCandidate.avatar.trim()
+      ? profileCandidate.avatar.trim()
+      : '🐧';
+
+  const newId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const hydratedMultStats = hydrateStats(profileCandidate.stats, 'mult');
+  const hydratedMultCards = hydrateCards(profileCandidate.cards, 'mult');
+  const hydratedPmStats = hydrateStats(profileCandidate.plusMinusStats, 'plusminus');
+  const hydratedPmCards = hydrateCards(profileCandidate.plusMinusCards, 'plusminus');
+
+  const profile: UserProfile = {
+    id: newId,
+    name,
+    avatar,
+    logoVariant: profileCandidate.logoVariant,
+    activeGameMode: profileCandidate.activeGameMode === 'plusminus' ? 'plusminus' : 'mult',
+    createdAt:
+      typeof profileCandidate.createdAt === 'number'
+        ? profileCandidate.createdAt
+        : Date.now(),
+    stats: hydratedMultStats,
+    cards: hydratedMultCards,
+    plusMinusStats: hydratedPmStats,
+    plusMinusCards: hydratedPmCards,
+  };
+
+  return {
+    success: true,
+    profile,
+    sourceSummary: {
+      name: profile.name,
+      avatar: profile.avatar,
+      starsMult: profile.stats.stars,
+      starsPlusMinus: profile.plusMinusStats.stars,
+      streakMult: profile.stats.streakDays,
+      streakPlusMinus: profile.plusMinusStats.streakDays,
+      totalSolved:
+        (profile.stats.totalSolved || 0) + (profile.plusMinusStats.totalSolved || 0),
+    },
+  };
+}
+
 /**
  * Gibt den eindeutigen Fakt-Familien-Schlüssel zurück.
  * Aufgaben wie 3×7, 7×3, 21:7, 21:3 (bzw. 3+7, 7+3, 10-3, 10-7)

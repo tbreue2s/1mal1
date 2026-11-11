@@ -39,6 +39,13 @@
   let profiles = $state<UserProfile[]>(loaded.profiles);
   let activeProfileId = $state<string>(loaded.activeProfileId);
 
+  const isDevelop =
+    typeof window !== 'undefined' &&
+    (Boolean((window as any).__IS_DEVELOP__) ||
+      window.location.pathname.includes('/develop') ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1');
+
   let lastBackup = $state<ProfileBackup | null>(loadInitialBackup());
   let pwaUpdateAvailable = $state(false);
 
@@ -303,6 +310,17 @@
     });
     persistAll(next, activeProfileId);
   }
+
+  function handleImportProfile(importedProfile: UserProfile, overwriteId?: string) {
+    if (overwriteId) {
+      const next = profiles.map((p) =>
+        p.id === overwriteId ? { ...importedProfile, id: overwriteId } : p
+      );
+      persistAll(next, overwriteId);
+    } else {
+      persistAll([...profiles, importedProfile], importedProfile.id);
+    }
+  }
 </script>
 
 <main class="w-full min-h-dvh p-3 sm:p-5 flex flex-col justify-between">
@@ -328,6 +346,7 @@
       {cards}
       {stats}
       {activeProfile}
+      {isDevelop}
       soundEnabled={stats.soundEnabled}
       onToggleSound={handleToggleSound}
       onStartSession={startDailySession}
@@ -370,12 +389,14 @@
       {gameMode}
       typeFilter={stats.typeFilter}
       {lastBackup}
+      {isDevelop}
       onSelectProfile={handleSelectProfile}
       onCreateProfile={handleCreateProfile}
       onUpdateProfile={handleUpdateProfile}
       onDeleteProfile={handleDeleteProfile}
       onResetProfile={handleResetProfile}
       onRestoreBackup={handleRestoreBackup}
+      onImportProfile={handleImportProfile}
       onSetManualStreak={handleSetManualStreak}
       onSetGameMode={handleSetProfileGameMode}
       onSetTypeFilter={handleSetTypeFilter}
