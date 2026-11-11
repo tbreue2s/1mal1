@@ -180,52 +180,6 @@ function computeChapterStats(
   star2Desc = '',
   star3Desc = ''
 ): WorldChapter {
-  let totalFacts = 0;
-  let factPoints = 0;
-
-  if (rows && rows.length > 0) {
-    totalFacts = rows.length * 10;
-    for (const r of rows) {
-      for (let a = 1; a <= 10; a++) {
-        const cellCards = chapterCards.filter(
-          (c) => c.fact[0] === a && c.fact[1] === r
-        );
-        const st = getMatrixCellStatus(cellCards);
-        if (st === 'mastered') {
-          factPoints += 1;
-        } else if (st === 'learning') {
-          factPoints += 0.5;
-        } else if (st === 'wrong') {
-          factPoints += 0.2;
-        }
-      }
-    }
-  } else {
-    const factKeys = Array.from(
-      new Set(chapterCards.map((c) => `${c.fact[0]}_${c.fact[1]}`))
-    );
-    totalFacts = factKeys.length || 1;
-    for (const key of factKeys) {
-      const [a, b] = key.split('_').map(Number);
-      const cellCards = chapterCards.filter(
-        (c) => c.fact[0] === a && c.fact[1] === b
-      );
-      const st = getMatrixCellStatus(cellCards);
-      if (st === 'mastered') {
-        factPoints += 1;
-      } else if (st === 'learning') {
-        factPoints += 0.5;
-      } else if (st === 'wrong') {
-        factPoints += 0.2;
-      }
-    }
-  }
-
-  const percent = Math.min(
-    100,
-    Math.round((factPoints / (totalFacts || 1)) * 100)
-  );
-
   const totalCards = chapterCards.length || 1;
   const masteredCards = chapterCards.filter(
     (c) => getCardMastery(c) === 'mastered'
@@ -316,12 +270,28 @@ function computeChapterStats(
   else if (s2Achieved) stars = 2;
   else if (s1Achieved) stars = 1;
 
+  // Der Prozentwert auf der Welt-Kachel deckt sich 1:1 mit der aktuellen Stufe:
+  // - 0 Sterne: Zeigt Fortschritt zu Stern 1 (0..100%)
+  // - 1 Stern:  Zeigt Fortschritt zu Stern 2 (0..100%)
+  // - 2 Sterne: Zeigt Fortschritt zu Stern 3 (0..100%)
+  // - 3 Sterne: 100% gemeistert
+  let percent = 0;
+  if (stars === 3) {
+    percent = 100;
+  } else if (stars === 2) {
+    percent = s3Percent;
+  } else if (stars === 1) {
+    percent = s2Percent;
+  } else {
+    percent = s1Percent;
+  }
+
   let statusText = 'Neu erkunden';
   if (stars === 3) statusText = 'Gemeistert! ⭐⭐⭐';
-  else if (stars === 2) statusText = `Stufe 3 (${s3Learned}/${s3Total} gelernt)`;
-  else if (stars === 1) statusText = `Stufe 2 (${s2Learned}/${s2Total} gelernt)`;
-  else if (s1Learned > 0) statusText = `Stufe 1 (${s1Learned}/${s1Total} gelernt)`;
-  else if (percent > 0) statusText = `${percent}% gelernt`;
+  else if (stars === 2) statusText = `Stufe 3: ${s3Learned}/${s3Total} gelernt (${s3Percent}%)`;
+  else if (stars === 1) statusText = `Stufe 2: ${s2Learned}/${s2Total} gelernt (${s2Percent}%)`;
+  else if (s1Learned > 0) statusText = `Stufe 1: ${s1Learned}/${s1Total} gelernt (${s1Percent}%)`;
+  else statusText = 'Noch unentdeckt';
 
   return {
     id,

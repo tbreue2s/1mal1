@@ -64,7 +64,7 @@
           </span>
         </div>
         <span class="text-[11px] font-medium text-slate-400 dark:text-slate-400">
-          Zahlen-Held · Profil anpassen
+          {gameMode === 'mult' ? '1×1 Meister' : 'Zahlen-Held'} · Profil anpassen
         </span>
       </div>
     </button>
@@ -296,7 +296,7 @@
               {selectedChapter.title}
             </h4>
             <p class="text-[11px] text-slate-400 m-0">
-              {selectedChapter.subtitle} · {selectedChapter.percent}% gemeistert
+              {selectedChapter.subtitle} · {selectedChapter.statusText}
             </p>
           </div>
         </div>
