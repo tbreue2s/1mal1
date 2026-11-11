@@ -21,7 +21,6 @@
       isFast: boolean
     ) => void;
     onFinishSession: () => void;
-    onOpenMatrix: () => void;
     onRestartSession: () => void;
   }
 
@@ -30,776 +29,330 @@
     soundEnabled,
     onCardEvaluated,
     onFinishSession,
-    onOpenMatrix,
     onRestartSession,
   }: Props = $props();
 
-  // Lokale Session-Queue (Fehlerkarten wandern ans Ende der aktuellen Session)
   let queue = $state<TaskCard[]>([]);
   let currentIndex = $state(0);
   let inputDigits = $state('');
 
-  // Millisekunden-Timer für die aktuelle Aufgabe
   let taskStartMs = $state(0);
   let elapsedLiveMs = $state(0);
   let timerInterval: ReturnType<typeof setInterval> | null = null;
   let autoNextTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  // Feedback-Zustand nach dem Prüfen
   let feedbackState = $state<'idle' | 'correct' | 'wrong'>('idle');
   let feedbackTitle = $state('');
   let feedbackSubtitle = $state('');
   let lastQuality = $state<0 | 2 | 3 | 4>(0);
   let sessionFinished = $state(false);
 
-  // Runden-Statistik
   let sessionStars = $state(0);
   let sessionCorrectFirstTry = $state(0);
   let sessionFastCount = $state(0);
   let sessionMistakes = $state(0);
   let seenCardIds = new Set<string>();
+  let retryCardIds = new Set<string>();
 
-  let currentCard = $derived(queue[currentIndex] ?? null);
-  let equation = $derived(currentCard ? formatEquationParts(currentCard) : null);
-
-  let progressPercent = $derived(
-    queue.length > 0 ? Math.min(100, Math.round((currentIndex / queue.length) * 100)) : 0
+  let currentCard = $derived(queue[currentIndex]);
+  let equationParts = $derived(
+    currentCard ? formatEquationParts(currentCard) : null
   );
 
-  function startTaskTimer() {
-    taskStartMs = performance.now();
-    elapsedLiveMs = 0;
-    if (timerInterval) clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
-      if (feedbackState === 'idle' && !sessionFinished) {
-        elapsedLiveMs = Math.max(0, Math.round(performance.now() - taskStartMs));
-      }
-    }, 100);
-  }
-
-  function initSession() {
-    queue = [...initialQueue];
-    currentIndex = 0;
-    inputDigits = '';
-    feedbackState = 'idle';
-    sessionFinished = false;
-    sessionStars = 0;
-    sessionCorrectFirstTry = 0;
-    sessionFastCount = 0;
-    sessionMistakes = 0;
-    seenCardIds = new Set();
-    startTaskTimer();
-  }
+  let canSubmit = $derived(
+    feedbackState === 'idle' && inputDigits.trim().length > 0
+  );
+  let canDelete = $derived(
+    feedbackState === 'idle' && inputDigits.length > 0
+  );
 
   onMount(() => {
-    initSession();
+    queue = [...initialQueue];
+    currentIndex = 0;
+    startTaskTimer();
   });
 
   onDestroy(() => {
-    if (timerInterval) clearInterval(timerInterval);
-    if (autoNextTimeout) clearTimeout(autoNextTimeout);
+    clearTimers();
   });
 
+  function clearTimers() {
+    if (timerInterval) clearInterval(timerInterval);
+    if (autoNextTimeout) clearTimeout(autoNextTimeout);
+  }
+
+  function startTaskTimer() {
+    clearTimers();
+    taskStartMs = Date.now();
+    elapsedLiveMs = 0;
+    timerInterval = setInterval(() => {
+      elapsedLiveMs = Date.now() - taskStartMs;
+    }, 100);
+  }
+
   function handleDigit(digit: string) {
-    if (feedbackState !== 'idle' || sessionFinished) return;
-    if (inputDigits.length >= 3) return;
-    // Verhindere führende Nullen wie "05"
-    if (inputDigits === '0') {
-      inputDigits = digit;
-    } else {
-      inputDigits += digit;
-    }
+    if (feedbackState !== 'idle' || inputDigits.length >= 4) return;
+    inputDigits += digit;
     playKeyTap(soundEnabled);
   }
 
   function handleDelete() {
-    if (feedbackState !== 'idle' || sessionFinished) return;
-    if (inputDigits.length > 0) {
-      inputDigits = inputDigits.slice(0, -1);
-      playKeyTap(soundEnabled);
-    }
+    if (feedbackState !== 'idle' || inputDigits.length === 0) return;
+    inputDigits = inputDigits.slice(0, -1);
+    playKeyTap(soundEnabled);
   }
 
-  function advanceToNextCard() {
-    if (autoNextTimeout) {
-      clearTimeout(autoNextTimeout);
-      autoNextTimeout = null;
+  function handleSubmit() {
+    if (!canSubmit || !currentCard) return;
+    clearTimers();
+
+    const responseMs = Math.max(100, Date.now() - taskStartMs);
+    const userAnswer = Number.parseInt(inputDigits, 10);
+    const isCorrect = userAnswer === currentCard.solution;
+    const isFirstTryForThisCard = !seenCardIds.has(currentCard.id);
+    seenCardIds.add(currentCard.id);
+
+    let cardToSave: TaskCard;
+    let starsToAward = 0;
+
+    if (!isFirstTryForThisCard && retryCardIds.has(currentCard.id)) {
+      // In-Session Wiederholung einer zuvor falsch gelösten Karte
+      if (isCorrect) {
+        feedbackTitle = 'Klasse korrigiert! 👏';
+        feedbackSubtitle = 'Denkfehler verstanden! Morgen noch einmal zur Festigung.';
+        feedbackState = 'correct';
+        playSuccessSound(soundEnabled, false);
+
+        // Didaktisch entscheidend: Die Karte wurde heute zuerst verfehlt.
+        // Das sofortige Lösen schließt die Runde positiv ab, löscht aber NICHT den Fehler.
+        // Die Karte bleibt auf repetitions = 0 und lastQuality = 0 (damit sie rot bleibt und morgen wiederholt wird!)
+        cardToSave = {
+          ...currentCard,
+          repetitions: 0,
+          interval: 1,
+          dueDate: Date.now() + 86400000,
+          lastQuality: 0,
+          totalAttempts: currentCard.totalAttempts + 1,
+          correctAttempts: currentCard.correctAttempts + 1,
+        };
+        starsToAward = 1; // 1 Belohnungsstern für das Nachbessern
+      } else {
+        sessionMistakes++;
+        feedbackState = 'wrong';
+        feedbackTitle = 'Nochmal anschauen:';
+        feedbackSubtitle = 'Schau dir das Ergebnis genau an.';
+        playErrorSound(soundEnabled);
+
+        cardToSave = {
+          ...currentCard,
+          repetitions: 0,
+          interval: 0,
+          dueDate: Date.now(),
+          lastQuality: 0,
+          totalAttempts: currentCard.totalAttempts + 1,
+        };
+        queue = [...queue, { ...cardToSave }];
+        starsToAward = 0;
+      }
+    } else {
+      // Regulärer Erstversuch in dieser Session
+      const result = applySM2(currentCard, isCorrect, responseMs);
+      cardToSave = result.updatedCard;
+      lastQuality = result.quality;
+      feedbackTitle = result.feedbackTitle;
+      feedbackSubtitle = result.feedbackSubtitle;
+
+      if (isCorrect) {
+        if (result.quality === 4) {
+          sessionFastCount++;
+        }
+        sessionCorrectFirstTry++;
+        feedbackState = 'correct';
+        playSuccessSound(soundEnabled, result.quality === 4);
+        starsToAward = result.starsEarned;
+      } else {
+        sessionMistakes++;
+        feedbackState = 'wrong';
+        playErrorSound(soundEnabled);
+        retryCardIds.add(currentCard.id);
+
+        // Fehlerkarte ans Ende anhängen
+        queue = [...queue, { ...cardToSave }];
+        starsToAward = 0;
+      }
     }
 
+    sessionStars += starsToAward;
+    onCardEvaluated(
+      cardToSave,
+      starsToAward,
+      isCorrect,
+      isFirstTryForThisCard && lastQuality === 4
+    );
+
+    const delay = isCorrect ? (lastQuality === 4 ? 800 : 1200) : 2200;
+    autoNextTimeout = setTimeout(() => {
+      advanceNext();
+    }, delay);
+  }
+
+  function advanceNext() {
+    clearTimers();
+    feedbackState = 'idle';
+    inputDigits = '';
+
     if (currentIndex + 1 < queue.length) {
-      currentIndex += 1;
-      inputDigits = '';
-      feedbackState = 'idle';
+      currentIndex++;
       startTaskTimer();
     } else {
-      if (timerInterval) clearInterval(timerInterval);
       sessionFinished = true;
       playCelebrationSound(soundEnabled);
     }
   }
-
-  function handleSubmit() {
-    if (sessionFinished || !currentCard) return;
-
-    // Falls gerade die Fehler-Korrektur angezeigt wird, dient ✓ / Enter als "Weiter"
-    if (feedbackState === 'wrong') {
-      advanceToNextCard();
-      return;
-    }
-
-    if (feedbackState === 'correct') {
-      advanceToNextCard();
-      return;
-    }
-
-    if (inputDigits.trim() === '') return;
-
-    const responseTimeMs = Math.max(100, Math.round(performance.now() - taskStartMs));
-    const userAnswer = Number.parseInt(inputDigits, 10);
-    const isCorrect = userAnswer === currentCard.solution;
-    const isFirstAttemptInSession = !seenCardIds.has(currentCard.id);
-    seenCardIds.add(currentCard.id);
-
-    const result = applySM2(currentCard, isCorrect, responseTimeMs);
-    lastQuality = result.quality;
-    feedbackTitle = result.feedbackTitle;
-    feedbackSubtitle = result.feedbackSubtitle;
-
-    // Aktualisiere die Karte im aktuellen Slot
-    queue[currentIndex] = result.updatedCard;
-
-    onCardEvaluated(
-      result.updatedCard,
-      result.starsEarned,
-      isCorrect,
-      result.quality === 4
-    );
-
-    if (isCorrect) {
-      feedbackState = 'correct';
-      sessionStars += result.starsEarned;
-      if (isFirstAttemptInSession) {
-        sessionCorrectFirstTry += 1;
-      }
-      if (result.quality === 4) {
-        sessionFastCount += 1;
-      }
-      playSuccessSound(soundEnabled, result.quality === 4);
-
-      autoNextTimeout = setTimeout(() => {
-        advanceToNextCard();
-      }, 950);
-    } else {
-      feedbackState = 'wrong';
-      sessionMistakes += 1;
-      playErrorSound(soundEnabled);
-
-      // Falsche Antwort: repetitions = 0 (bereits in applySM2 gesetzt)
-      // und Aufgabe wandert ans Ende der aktuellen Session!
-      queue = [...queue, { ...result.updatedCard }];
-    }
-  }
 </script>
 
-<div class="practice-view">
-  {#if !sessionFinished && currentCard && equation}
-    <!-- Fortschrittsleiste oben -->
-    <div class="session-topbar">
+<div class="w-full max-w-md mx-auto space-y-4 pb-8">
+  {#if !sessionFinished && currentCard && equationParts}
+    <!-- Top Nav: Abbruch, Fortschritt & Zeit -->
+    <div class="flex items-center justify-between gap-3 text-xs">
       <button
         type="button"
-        class="quit-btn"
         onclick={onFinishSession}
-        aria-label="Zurück zur Übersicht"
+        class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-100 cursor-pointer"
       >
         ✕ Beenden
       </button>
 
-      <div class="progress-wrapper" aria-label="Aufgabe {currentIndex + 1} von {queue.length}">
-        <div class="progress-track">
-          <div class="progress-fill" style="width: {progressPercent}%"></div>
-        </div>
-        <span class="progress-text">
-          {currentIndex + 1} / {queue.length}
-        </span>
+      <div class="flex-1 bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+        <div
+          class="bg-indigo-600 dark:bg-indigo-500 h-full transition-all duration-200"
+          style="width: {Math.round(((currentIndex) / queue.length) * 100)}%"
+        ></div>
       </div>
 
-      <div class="session-stars" title="Sterne in dieser Runde">
-        ⭐ {sessionStars}
+      <div class="text-slate-500 dark:text-slate-400 font-extrabold tabular-nums">
+        {currentIndex + 1} / {queue.length}
       </div>
     </div>
 
-    <!-- Aufgaben-Karte -->
+    <!-- Große Aufgabenkarte -->
     <div
-      class="task-card"
-      class:state-correct={feedbackState === 'correct'}
-      class:state-wrong={feedbackState === 'wrong'}
+      class="bg-white dark:bg-[#111827] rounded-3xl p-6 border-2 shadow-sm text-center relative transition-all duration-200 {
+        feedbackState === 'correct'
+          ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20'
+          : feedbackState === 'wrong'
+          ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/20'
+          : 'border-slate-200 dark:border-slate-800'
+      }"
     >
-      <div class="task-card-meta">
-        <span class="type-pill">{equation.typeBadge}</span>
-
-        <span
-          class="speed-indicator"
-          class:speed-fast={elapsedLiveMs <= FAST_THRESHOLD_MS}
-          class:speed-good={elapsedLiveMs > FAST_THRESHOLD_MS && elapsedLiveMs <= GOOD_THRESHOLD_MS}
-          class:speed-slow={elapsedLiveMs > GOOD_THRESHOLD_MS}
-        >
-          {#if elapsedLiveMs <= FAST_THRESHOLD_MS}
-            ⚡ Blitz-Tempo (≤ 4s)
-          {:else if elapsedLiveMs <= GOOD_THRESHOLD_MS}
-            👍 Gutes Tempo (≤ 8s)
-          {:else}
-            🧠 In Ruhe rechnen
-          {/if}
+      <div class="flex items-center justify-center gap-2 mb-3">
+        <span class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+          {equationParts.typeBadge}
         </span>
-      </div>
-
-      <div class="equation-display" aria-live="polite">
-        {#if equation.left}
-          <span class="eq-part">{equation.left}</span>
-        {/if}
-
-        <span
-          class="answer-slot"
-          class:filled={inputDigits.length > 0}
-          class:slot-correct={feedbackState === 'correct'}
-          class:slot-wrong={feedbackState === 'wrong'}
-        >
-          {inputDigits.length > 0 ? inputDigits : '?'}
-        </span>
-
-        {#if equation.right}
-          <span class="eq-part">{equation.right}</span>
+        {#if currentCard && retryCardIds.has(currentCard.id) && currentIndex >= initialQueue.length}
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+            🔁 Wiederholung
+          </span>
         {/if}
       </div>
 
-      <!-- Sofort-Feedback Bereich -->
-      {#if feedbackState === 'correct'}
-        <div class="feedback-banner banner-correct" role="status">
-          <div class="fb-main">
-            <span class="fb-icon">{lastQuality === 4 ? '⚡' : '🎉'}</span>
-            <div>
-              <div class="fb-title">{feedbackTitle}</div>
-              <div class="fb-sub">{feedbackSubtitle}</div>
-            </div>
-          </div>
+      <!-- Gleichung mit Eingabefeld -->
+      <div class="flex items-center justify-center gap-2 text-3xl sm:text-4xl font-black text-slate-900 dark:text-white my-4 select-none">
+        {#if equationParts.left}
+          <span>{equationParts.left}</span>
+        {/if}
+
+        <div
+          class="min-w-16 px-3 py-1 rounded-2xl border-2 text-center transition-all {
+            feedbackState === 'correct'
+              ? 'border-emerald-500 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
+              : feedbackState === 'wrong'
+              ? 'border-rose-500 bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300'
+              : 'border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/40 text-slate-900 dark:text-white'
+          }"
+        >
+          {inputDigits || '?'}
         </div>
-      {:else if feedbackState === 'wrong'}
-        <div class="feedback-banner banner-wrong" role="alert">
-          <div class="fb-wrong-header">
-            <span class="fb-icon">💡</span>
-            <div>
-              <div class="fb-title">{feedbackTitle}</div>
-              <div class="correction-equation">{equation.fullEquationWithSolution}</div>
-              <div class="correction-hint">{equation.hintText}</div>
-            </div>
-          </div>
 
-          <button
-            type="button"
-            class="continue-after-wrong-btn"
-            onclick={advanceToNextCard}
+        {#if equationParts.right}
+          <span>{equationParts.right}</span>
+        {/if}
+      </div>
+
+      <!-- Feedback Meldung -->
+      {#if feedbackState !== 'idle'}
+        <div class="mt-3 animate-fade-in">
+          <div
+            class="text-sm font-black"
+            class:text-emerald-600={feedbackState === 'correct'}
+            class:dark:text-emerald-400={feedbackState === 'correct'}
+            class:text-rose-600={feedbackState === 'wrong'}
+            class:dark:text-rose-400={feedbackState === 'wrong'}
           >
-            Verstanden – Weiter →
-          </button>
+            {feedbackTitle}
+          </div>
+          <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            {feedbackSubtitle}
+          </div>
         </div>
       {:else}
-        <div class="feedback-placeholder">
-          Tippe die Lösung über die großen Tasten ein
+        <div class="text-xs text-slate-400 mt-2">
+          Gib das Ergebnis ein und tippe auf Prüfen
         </div>
       {/if}
     </div>
 
-    <!-- Eigenes On-Screen-Keypad -->
+    <!-- Ziffernblock -->
     <Keypad
-      disabled={feedbackState === 'correct'}
-      canDelete={feedbackState === 'idle' && inputDigits.length > 0}
-      canSubmit={
-        (feedbackState === 'idle' && inputDigits.length > 0) ||
-        feedbackState === 'wrong'
-      }
+      disabled={feedbackState !== 'idle'}
+      {canSubmit}
+      {canDelete}
       onDigit={handleDigit}
       onDelete={handleDelete}
       onSubmit={handleSubmit}
     />
   {:else if sessionFinished}
-    <!-- Runden-Abschluss & Belohnung -->
-    <div class="summary-card">
-      <div class="trophy-badge">🏆</div>
-      <h2 class="summary-title">Runde geschafft!</h2>
-      <p class="summary-subtitle">
-        Du hast alle Aufgaben dieser Trainingsrunde gelöst.
+    <!-- RUNDEN-ABSCHLUSS MODAL -->
+    <div class="bg-white dark:bg-[#111827] rounded-3xl p-6 border-2 border-slate-200 dark:border-slate-800 text-center shadow-lg space-y-4">
+      <div class="text-5xl">🏆</div>
+      <h2 class="text-xl font-black text-slate-900 dark:text-white m-0">
+        Runde geschafft!
+      </h2>
+      <p class="text-xs text-slate-500 dark:text-slate-400 m-0">
+        Klasse! Dein Lernfortschritt wurde gespeichert.
       </p>
 
-      <div class="summary-stats-grid">
-        <div class="sum-box sum-stars">
-          <span class="sum-val">+{sessionStars} ⭐</span>
-          <span class="sum-lbl">Sterne gesammelt</span>
+      <div class="grid grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-700">
+        <div>
+          <span class="text-[10px] text-slate-400 block font-bold uppercase">Sterne</span>
+          <span class="text-lg font-black text-amber-500">+{sessionStars} ⭐</span>
         </div>
-        <div class="sum-box sum-fast">
-          <span class="sum-val">{sessionFastCount} ⚡</span>
-          <span class="sum-lbl">Blitz-Antworten (≤ 4s)</span>
+        <div>
+          <span class="text-[10px] text-slate-400 block font-bold uppercase">Direkt richtig</span>
+          <span class="text-lg font-black text-emerald-500">{sessionCorrectFirstTry}</span>
         </div>
-        <div class="sum-box sum-acc">
-          <span class="sum-val">
-            {initialQueue.length > 0
-              ? Math.round((sessionCorrectFirstTry / initialQueue.length) * 100)
-              : 100}%
-          </span>
-          <span class="sum-lbl">Sofort gewusst</span>
+        <div>
+          <span class="text-[10px] text-slate-400 block font-bold uppercase">Blitzschnell</span>
+          <span class="text-lg font-black text-cyan-500">{sessionFastCount} ⚡</span>
         </div>
       </div>
 
-      {#if sessionMistakes > 0}
-        <p class="mistake-note">
-          💪 Stark! Du hast {sessionMistakes === 1 ? '1 schwierige Aufgabe' : `${sessionMistakes} schwierige Aufgaben`} am Ende der Runde erfolgreich wiederholt.
-        </p>
-      {/if}
-
-      <div class="summary-actions">
+      <div class="flex items-center gap-2 pt-2">
         <button
           type="button"
-          class="primary-again-btn"
-          onclick={() => {
-            onRestartSession();
-            initSession();
-          }}
+          onclick={onRestartSession}
+          class="flex-1 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-extrabold text-xs cursor-pointer border-none"
         >
-          Noch eine Runde spielen 🚀
+          Nochmal üben
         </button>
-
-        <div class="secondary-actions">
-          <button type="button" class="sec-btn" onclick={onOpenMatrix}>
-            10×10 Matrix ansehen
-          </button>
-          <button type="button" class="sec-btn" onclick={onFinishSession}>
-            Zur Startseite
-          </button>
-        </div>
+        <button
+          type="button"
+          onclick={onFinishSession}
+          class="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs cursor-pointer border-none btn-calm-primary"
+        >
+          Zur Übersicht
+        </button>
       </div>
     </div>
   {/if}
 </div>
-
-<style>
-  .practice-view {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding-bottom: 16px;
-  }
-
-  .session-topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    background: #ffffff;
-    padding: 10px 14px;
-    border-radius: 16px;
-    border: 2px solid #e0e7ff;
-  }
-
-  .quit-btn {
-    background: #f1f5f9;
-    color: #475569;
-    border: none;
-    border-radius: 10px;
-    padding: 7px 11px;
-    font-family: inherit;
-    font-weight: 800;
-    font-size: 0.82rem;
-    cursor: pointer;
-  }
-
-  .quit-btn:hover {
-    background: #e2e8f0;
-    color: #1e293b;
-  }
-
-  .progress-wrapper {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .progress-track {
-    flex: 1;
-    height: 11px;
-    background: #e0e7ff;
-    border-radius: 999px;
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #4f46e5, #10b981);
-    border-radius: 999px;
-    transition: width 0.25s ease;
-  }
-
-  .progress-text {
-    font-size: 0.8rem;
-    font-weight: 800;
-    color: #4338ca;
-    white-space: nowrap;
-  }
-
-  .session-stars {
-    background: #fef3c7;
-    color: #b45309;
-    padding: 5px 10px;
-    border-radius: 999px;
-    font-weight: 900;
-    font-size: 0.86rem;
-    white-space: nowrap;
-  }
-
-  .task-card {
-    background: #ffffff;
-    border-radius: 24px;
-    padding: 18px 16px;
-    border: 3px solid #c7d2fe;
-    box-shadow: 0 8px 20px rgba(79, 70, 229, 0.08);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 215px;
-    transition: border-color 0.2s ease, background-color 0.2s ease;
-  }
-
-  .task-card.state-correct {
-    border-color: #10b981;
-    background: #f0fdf4;
-  }
-
-  .task-card.state-wrong {
-    border-color: #f59e0b;
-    background: #fffbeb;
-  }
-
-  .task-card-meta {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .type-pill {
-    background: #eef2ff;
-    color: #4338ca;
-    font-size: 0.76rem;
-    font-weight: 800;
-    padding: 4px 10px;
-    border-radius: 999px;
-  }
-
-  .speed-indicator {
-    font-size: 0.75rem;
-    font-weight: 700;
-    padding: 4px 9px;
-    border-radius: 999px;
-    transition: all 0.2s ease;
-  }
-
-  .speed-fast {
-    background: #ecfdf5;
-    color: #047857;
-  }
-
-  .speed-good {
-    background: #eff6ff;
-    color: #1d4ed8;
-  }
-
-  .speed-slow {
-    background: #f8fafc;
-    color: #64748b;
-  }
-
-  .equation-display {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin: 18px 0;
-    font-size: clamp(2.1rem, 8vw, 3rem);
-    font-weight: 900;
-    color: #1e1b4b;
-    letter-spacing: -0.02em;
-  }
-
-  .eq-part {
-    line-height: 1.1;
-  }
-
-  .answer-slot {
-    min-width: 78px;
-    height: 64px;
-    padding: 0 14px;
-    border-radius: 16px;
-    border: 3px dashed #6366f1;
-    background: #eef2ff;
-    color: #94a3b8;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: clamp(2rem, 7.5vw, 2.75rem);
-    font-weight: 900;
-    transition: all 0.15s ease;
-  }
-
-  .answer-slot.filled {
-    border-style: solid;
-    border-color: #4f46e5;
-    background: #ffffff;
-    color: #4f46e5;
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);
-  }
-
-  .answer-slot.slot-correct {
-    border-style: solid;
-    border-color: #059669;
-    background: #d1fae5;
-    color: #065f46;
-  }
-
-  .answer-slot.slot-wrong {
-    border-style: solid;
-    border-color: #dc2626;
-    background: #fee2e2;
-    color: #b91c1c;
-    text-decoration: line-through;
-  }
-
-  .feedback-placeholder {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #64748b;
-    text-align: center;
-  }
-
-  .feedback-banner {
-    width: 100%;
-    border-radius: 16px;
-    padding: 12px 14px;
-    animation: popIn 0.18s ease-out;
-  }
-
-  .banner-correct {
-    background: #d1fae5;
-    border: 2px solid #34d399;
-    color: #065f46;
-  }
-
-  .banner-wrong {
-    background: #fef3c7;
-    border: 2px solid #f59e0b;
-    color: #78350f;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .fb-main,
-  .fb-wrong-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .fb-icon {
-    font-size: 1.7rem;
-    line-height: 1;
-  }
-
-  .fb-title {
-    font-weight: 900;
-    font-size: 0.98rem;
-  }
-
-  .fb-sub {
-    font-size: 0.82rem;
-    font-weight: 700;
-    opacity: 0.9;
-  }
-
-  .correction-equation {
-    font-size: 1.35rem;
-    font-weight: 900;
-    color: #065f46;
-    background: #d1fae5;
-    display: inline-block;
-    padding: 3px 12px;
-    border-radius: 10px;
-    margin-top: 4px;
-  }
-
-  .correction-hint {
-    font-size: 0.82rem;
-    font-weight: 700;
-    color: #92400e;
-    margin-top: 4px;
-  }
-
-  .continue-after-wrong-btn {
-    width: 100%;
-    min-height: 48px;
-    border: none;
-    border-radius: 12px;
-    background: #4f46e5;
-    color: #ffffff;
-    font-family: inherit;
-    font-size: 0.98rem;
-    font-weight: 800;
-    cursor: pointer;
-    box-shadow: 0 3px 0 #312e81;
-  }
-
-  .continue-after-wrong-btn:hover {
-    background: #4338ca;
-  }
-
-  .summary-card {
-    background: #ffffff;
-    border-radius: 24px;
-    padding: 24px 18px;
-    border: 3px solid #c7d2fe;
-    box-shadow: 0 10px 25px rgba(79, 70, 229, 0.12);
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 14px;
-  }
-
-  .trophy-badge {
-    font-size: 3.4rem;
-    line-height: 1;
-  }
-
-  .summary-title {
-    margin: 0;
-    font-size: 1.65rem;
-    font-weight: 900;
-    color: #1e1b4b;
-  }
-
-  .summary-subtitle {
-    margin: -6px 0 0;
-    font-size: 0.92rem;
-    color: #64748b;
-  }
-
-  .summary-stats-grid {
-    width: 100%;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    margin-top: 4px;
-  }
-
-  .sum-box {
-    border-radius: 16px;
-    padding: 12px 6px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-  }
-
-  .sum-stars {
-    background: #fef3c7;
-    color: #92400e;
-  }
-
-  .sum-fast {
-    background: #d1fae5;
-    color: #065f46;
-  }
-
-  .sum-acc {
-    background: #eef2ff;
-    color: #3730a3;
-  }
-
-  .sum-val {
-    font-size: 1.25rem;
-    font-weight: 900;
-  }
-
-  .sum-lbl {
-    font-size: 0.72rem;
-    font-weight: 700;
-  }
-
-  .mistake-note {
-    margin: 0;
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #047857;
-    background: #ecfdf5;
-    padding: 10px 14px;
-    border-radius: 12px;
-  }
-
-  .summary-actions {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-top: 6px;
-  }
-
-  .primary-again-btn {
-    width: 100%;
-    min-height: 58px;
-    border: none;
-    border-radius: 16px;
-    background: linear-gradient(135deg, #4f46e5, #4338ca);
-    color: #ffffff;
-    font-family: inherit;
-    font-size: 1.1rem;
-    font-weight: 900;
-    cursor: pointer;
-    box-shadow: 0 5px 0 #312e81;
-  }
-
-  .secondary-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-
-  .sec-btn {
-    min-height: 48px;
-    border: 2px solid #c7d2fe;
-    border-radius: 14px;
-    background: #eef2ff;
-    color: #3730a3;
-    font-family: inherit;
-    font-size: 0.9rem;
-    font-weight: 800;
-    cursor: pointer;
-  }
-
-  .sec-btn:hover {
-    background: #e0e7ff;
-  }
-
-  @keyframes popIn {
-    from {
-      opacity: 0;
-      transform: translateY(4px) scale(0.98);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
-</style>
-

@@ -1,87 +1,63 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { LOGO_OPTIONS } from '../lib/logos';
-  import { subscribePWAInstallable, triggerPWAInstall } from '../lib/pwa';
-  import { getMatrixCellStatus } from '../lib/sm2';
   import { AVAILABLE_AVATARS } from '../lib/storage';
-  import type { GameMode, LogoVariantId, TaskCard, UserProfile } from '../lib/types';
-  import BrandLogo from './BrandLogo.svelte';
+  import type { GameMode, TypeFilter, UserProfile } from '../lib/types';
+  import { themeManager, type ThemeMode } from '../lib/theme.svelte';
+
+  export interface ProfileBackup {
+    profileId: string;
+    profile: UserProfile;
+    modeReset: GameMode | 'both';
+    timestamp: number;
+  }
 
   interface Props {
     profiles: UserProfile[];
     activeProfileId: string;
-    logoVariant: LogoVariantId;
+    gameMode: GameMode;
+    typeFilter: TypeFilter;
+    lastBackup?: ProfileBackup | null;
     onSelectProfile: (id: string) => void;
     onCreateProfile: (name: string, avatar: string) => void;
     onUpdateProfile: (id: string, name: string, avatar: string) => void;
     onDeleteProfile: (id: string) => void;
     onResetProfile: (id: string, targetMode: GameMode | 'both') => void;
+    onRestoreBackup?: (id: string) => void;
     onSetManualStreak: (id: string, streakDays: number, targetMode: GameMode) => void;
     onSetGameMode: (id: string, mode: GameMode) => void;
-    onSelectLogo: (variant: LogoVariantId) => void;
+    onSetTypeFilter: (filter: TypeFilter) => void;
     onClose: () => void;
   }
 
   let {
     profiles,
     activeProfileId,
-    logoVariant,
+    gameMode,
+    typeFilter,
+    lastBackup = null,
     onSelectProfile,
     onCreateProfile,
     onUpdateProfile,
     onDeleteProfile,
     onResetProfile,
+    onRestoreBackup,
     onSetManualStreak,
     onSetGameMode,
-    onSelectLogo,
+    onSetTypeFilter,
     onClose,
   }: Props = $props();
 
   let newName = $state('');
   let selectedAvatar = $state(AVAILABLE_AVATARS[0]);
 
-  // Zustand für Name/Avatar bearbeiten, manuelles Streak-Bearbeiten, Zurücksetzen & Löschen pro Profil
   let editingNameProfileId = $state<string | null>(null);
   let editNameInput = $state('');
   let editAvatarInput = $state(AVAILABLE_AVATARS[0]);
+
   let editingStreakProfileId = $state<string | null>(null);
-  let editingStreakMode = $state<GameMode>('mult');
-  let manualStreakInput = $state<string>('0');
+  let manualStreakInput = $state('0');
+
   let confirmResetId = $state<string | null>(null);
   let confirmDeleteId = $state<string | null>(null);
-  let canInstallPWA = $state(false);
-  let logoChangedNotice = $state(false);
-
-  const logoOptions = LOGO_OPTIONS;
-
-  onMount(() => {
-    const unsub = subscribePWAInstallable((installable) => {
-      canInstallPWA = installable;
-    });
-    return () => unsub();
-  });
-
-  function handleSelectLogoOption(id: LogoVariantId) {
-    if (id !== logoVariant) {
-      logoChangedNotice = true;
-    }
-    onSelectLogo(id);
-  }
-
-  function countMasteredForPool(pool: TaskCard[]): number {
-    let mastered = 0;
-    for (let a = 1; a <= 10; a++) {
-      for (let b = 1; b <= 10; b++) {
-        const cellCards = pool.filter(
-          (c) => c.fact[0] === a && c.fact[1] === b
-        );
-        if (getMatrixCellStatus(cellCards) === 'mastered') {
-          mastered++;
-        }
-      }
-    }
-    return mastered;
-  }
 
   function handleAddProfile(event: SubmitEvent) {
     event.preventDefault();
@@ -112,7 +88,6 @@
   function openStreakEditor(profile: UserProfile) {
     editingStreakProfileId = profile.id;
     const mode = profile.activeGameMode ?? 'mult';
-    editingStreakMode = mode;
     const targetStats = mode === 'plusminus' ? profile.plusMinusStats : profile.stats;
     manualStreakInput = String(targetStats.streakDays);
     editingNameProfileId = null;
@@ -120,188 +95,285 @@
     confirmDeleteId = null;
   }
 
-  function switchStreakEditorMode(profile: UserProfile, mode: GameMode) {
-    editingStreakMode = mode;
-    const targetStats = mode === 'plusminus' ? profile.plusMinusStats : profile.stats;
-    manualStreakInput = String(targetStats.streakDays);
-  }
-
-  function handleModeChange(profile: UserProfile, nextMode: GameMode) {
-    onSetGameMode(profile.id, nextMode);
-    if (editingStreakProfileId === profile.id) {
-      editingStreakMode = nextMode;
-      const targetStats = nextMode === 'plusminus' ? profile.plusMinusStats : profile.stats;
-      manualStreakInput = String(targetStats.streakDays);
-    }
-  }
-
   function saveStreak(profileId: string) {
     const parsed = Number.parseInt(manualStreakInput, 10);
     const safeVal = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
-    onSetManualStreak(profileId, safeVal, editingStreakMode);
+    const targetProf = profiles.find((p) => p.id === profileId);
+    const mode = targetProf?.activeGameMode ?? 'mult';
+    onSetManualStreak(profileId, safeVal, mode);
     editingStreakProfileId = null;
   }
 </script>
 
-<section class="user-modal-view" aria-label="Benutzerprofile und Einstellungen">
-  <div class="header-card">
-    <div class="header-top">
+<div
+  class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-3"
+  onclick={(e) => {
+    if (e.target === e.currentTarget) onClose();
+  }}
+  onkeydown={(e) => {
+    if (e.key === 'Escape') onClose();
+  }}
+  role="dialog"
+  tabindex="-1"
+  aria-modal="true"
+  aria-label="Optionen & Nutzer"
+>
+  <div class="w-full max-w-md bg-white dark:bg-[#111827] border-2 border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-2xl max-h-[90dvh] overflow-y-auto custom-scroll text-slate-800 dark:text-slate-100">
+    <!-- Header -->
+    <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
       <div>
-        <h2>Benutzer & Profile</h2>
-        <p class="subtitle">
-          Jedes Profil speichert Lernstand, Sterne und Streak separat lokal auf diesem Gerät.
-        </p>
+        <h3 class="text-base font-black m-0 text-slate-900 dark:text-white">Optionen &amp; Nutzer</h3>
+        <p class="text-[11px] text-slate-400 m-0">Darstellung, Didaktik &amp; Profile</p>
       </div>
-      <button type="button" class="back-btn" onclick={onClose}>
-        ← Zurück
+      <button
+        type="button"
+        onclick={onClose}
+        class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white text-xs font-bold border-none cursor-pointer flex items-center justify-center"
+      >
+        ✕
       </button>
     </div>
-  </div>
 
-  <!-- Vorhandene Benutzerprofile -->
-  <div class="section-card">
-    <h3 class="card-heading">Spieler auswählen oder verwalten</h3>
+    <!-- 1. THEME SWITCHER (SYSTEM / HELL / DUNKEL) -->
+    <section class="mb-4 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+      <span class="text-xs font-black text-slate-700 dark:text-slate-200 block mb-2">
+        🎨 App-Erscheinungsbild:
+      </span>
+      <div class="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-slate-200/70 dark:bg-slate-900 border border-slate-300/50 dark:border-slate-800 text-xs">
+        <button
+          type="button"
+          onclick={() => themeManager.setMode('system')}
+          class="py-1.5 px-2 rounded-lg font-bold text-center border-none cursor-pointer transition flex items-center justify-center gap-1.5"
+          class:bg-white={themeManager.mode === 'system'}
+          class:dark:bg-slate-800={themeManager.mode === 'system'}
+          class:text-slate-900={themeManager.mode === 'system'}
+          class:dark:text-white={themeManager.mode === 'system'}
+          class:shadow-xs={themeManager.mode === 'system'}
+          class:text-slate-500={themeManager.mode !== 'system'}
+          class:dark:text-slate-400={themeManager.mode !== 'system'}
+        >
+          <span>💻</span> <span>System</span>
+        </button>
+        <button
+          type="button"
+          onclick={() => themeManager.setMode('light')}
+          class="py-1.5 px-2 rounded-lg font-bold text-center border-none cursor-pointer transition flex items-center justify-center gap-1.5"
+          class:bg-white={themeManager.mode === 'light'}
+          class:dark:bg-slate-800={themeManager.mode === 'light'}
+          class:text-slate-900={themeManager.mode === 'light'}
+          class:dark:text-white={themeManager.mode === 'light'}
+          class:shadow-xs={themeManager.mode === 'light'}
+          class:text-slate-500={themeManager.mode !== 'light'}
+          class:dark:text-slate-400={themeManager.mode !== 'light'}
+        >
+          <span>☀️</span> <span>Hell</span>
+        </button>
+        <button
+          type="button"
+          onclick={() => themeManager.setMode('dark')}
+          class="py-1.5 px-2 rounded-lg font-bold text-center border-none cursor-pointer transition flex items-center justify-center gap-1.5"
+          class:bg-white={themeManager.mode === 'dark'}
+          class:dark:bg-slate-800={themeManager.mode === 'dark'}
+          class:text-slate-900={themeManager.mode === 'dark'}
+          class:dark:text-white={themeManager.mode === 'dark'}
+          class:shadow-xs={themeManager.mode === 'dark'}
+          class:text-slate-500={themeManager.mode !== 'dark'}
+          class:dark:text-slate-400={themeManager.mode !== 'dark'}
+        >
+          <span>🌙</span> <span>Dunkel</span>
+        </button>
+      </div>
+      <p class="text-[10px] text-slate-400 mt-2 m-0">
+        Orientiert sich automatisch am Dark/Light Mode deines Smartphones oder Computers.
+      </p>
+    </section>
 
-    <div class="profiles-list">
+    <!-- 2. DIDAKTIK-STUFE: RECHENDETAILS -->
+    <section class="mb-4 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+      <span class="text-xs font-black text-slate-700 dark:text-slate-200 block mb-1">
+        ⭐ Aufgabenumfang für Trainings &amp; Missionen:
+      </span>
+      <p class="text-[11px] text-slate-500 dark:text-slate-400 mb-2.5">
+        Legt fest, ob in Trainingsrunden nur die Grundrechenart oder auch Umkehrungen erscheinen:
+      </p>
+      <div class="grid grid-cols-2 gap-2 text-xs">
+        <button
+          type="button"
+          onclick={() => onSetTypeFilter('mult_only')}
+          class="p-2.5 rounded-xl border text-left cursor-pointer transition {
+            typeFilter === 'mult_only'
+              ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/50'
+              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/40'
+          }"
+        >
+          <span class="block font-black text-slate-900 dark:text-white">
+            ⭐ {gameMode === 'mult' ? 'Nur Malnehmen' : 'Nur Plus'}
+          </span>
+          <span class="text-[10px] text-slate-400">
+            {gameMode === 'mult' ? '3 × 4 = ?' : '7 + 5 = ?'}
+          </span>
+        </button>
+        <button
+          type="button"
+          onclick={() => onSetTypeFilter('all_types')}
+          class="p-2.5 rounded-xl border text-left cursor-pointer transition {
+            typeFilter === 'all_types'
+              ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/50'
+              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/40'
+          }"
+        >
+          <span class="block font-black text-slate-900 dark:text-white">
+            ⭐⭐⭐ {gameMode === 'mult' ? 'Inkl. Geteilt & Lücken' : 'Inkl. Minus & Lücken'}
+          </span>
+          <span class="text-[10px] text-slate-400">
+            {gameMode === 'mult' ? '12 : 4 = ? · 3 × ? = 12' : '12 − 5 = ? · 7 + ? = 12'}
+          </span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 3. NUTZERVERWALTUNG -->
+    <section class="space-y-3 mb-4">
+      <span class="text-xs font-black text-slate-700 dark:text-slate-200 block">
+        👥 Nutzerprofile ({profiles.length}):
+      </span>
+
       {#each profiles as prof (prof.id)}
         {@const isActive = prof.id === activeProfileId}
-        {@const masteredMult = countMasteredForPool(prof.cards)}
-        {@const masteredPm = countMasteredForPool(prof.plusMinusCards)}
-        <div class="profile-item" class:active={isActive}>
-          <div class="profile-main-row">
+        {@const profMode = prof.activeGameMode ?? 'mult'}
+        {@const profStats = profMode === 'plusminus' ? prof.plusMinusStats : prof.stats}
+        <div
+          class="p-3 rounded-2xl border transition {
+            isActive
+              ? 'border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/30'
+              : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50'
+          }"
+        >
+          <div class="flex items-center justify-between mb-2">
             <button
               type="button"
-              class="profile-select-btn"
               onclick={() => onSelectProfile(prof.id)}
-              title="Zu {prof.name} wechseln"
+              class="flex items-center gap-2 bg-transparent border-none p-0 cursor-pointer text-left"
             >
-              <span class="prof-avatar">{prof.avatar}</span>
-              <span class="prof-info">
-                <span class="prof-name-row">
-                  <span class="prof-name">{prof.name}</span>
+              <span class="text-2xl">{prof.avatar}</span>
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="font-black text-sm text-slate-900 dark:text-white">
+                    {prof.name}
+                  </span>
                   {#if isActive}
-                    <span class="active-badge">Aktiv</span>
+                    <span class="text-[9px] font-black bg-indigo-600 text-white px-1.5 py-0.2 rounded-full uppercase">
+                      Aktiv
+                    </span>
                   {/if}
-                </span>
-                <span class="prof-stats">
-                  ✖️ 1×1: 🔥 {prof.stats.streakDays} · ⭐ {prof.stats.stars} · ✅ {masteredMult}/100
-                </span>
-                <span class="prof-stats">
-                  ➕ Zahlenheld: 🔥 {prof.plusMinusStats.streakDays} · ⭐ {prof.plusMinusStats.stars} · ✅ {masteredPm}/100
-                </span>
-              </span>
+                </div>
+                <div class="text-[10px] text-slate-400 font-semibold">
+                  🔥 {profStats.streakDays} Tage · ⭐ {profStats.stars} Sterne
+                </div>
+              </div>
+            </button>
+          </div>
+
+          <!-- Aktionsleiste: Name, Rechenmodus-Dropdown, Streak, Reset, Delete -->
+          <div class="flex items-center gap-1.5 flex-wrap pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+            <button
+              type="button"
+              onclick={() => openNameEditor(prof)}
+              class="px-2 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[11px] font-extrabold text-slate-700 dark:text-slate-200 cursor-pointer"
+            >
+              ✏️ Name
             </button>
 
-            <div class="profile-actions">
+            <!-- DROPDOWN FÜR RECHENMODUS -->
+            <select
+              value={prof.activeGameMode ?? 'mult'}
+              onchange={(e) => onSetGameMode(prof.id, e.currentTarget.value as GameMode)}
+              class="px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-200 dark:border-indigo-800 text-[11px] font-black text-indigo-700 dark:text-indigo-300 cursor-pointer"
+              title="Rechenmodus festlegen"
+            >
+              <option value="mult">✖️ 1×1 Meister</option>
+              <option value="plusminus">➕ Zahlenheld</option>
+            </select>
+
+            <button
+              type="button"
+              onclick={() => openStreakEditor(prof)}
+              class="px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] font-extrabold text-amber-800 dark:text-amber-300 cursor-pointer"
+            >
+              🔥 Streak
+            </button>
+
+            {#if lastBackup && lastBackup.profileId === prof.id}
               <button
                 type="button"
-                class="small-action-btn edit-name-btn"
-                onclick={() =>
-                  editingNameProfileId === prof.id
-                    ? (editingNameProfileId = null)
-                    : openNameEditor(prof)}
-                title="Spielername oder Figur ändern"
-              >
-                ✏️ Name
-              </button>
-
-              <div class="mode-select-wrap">
-                <select
-                  id="mode-select-{prof.id}"
-                  class="small-action-select mode-select"
-                  class:is-pm={prof.activeGameMode === 'plusminus'}
-                  value={prof.activeGameMode ?? 'mult'}
-                  onchange={(e) =>
-                    handleModeChange(prof, e.currentTarget.value as GameMode)}
-                  title="Rechenmodus für {prof.name} festlegen"
-                  aria-label="Rechenmodus für {prof.name}"
-                >
-                  <option value="mult">✖️ 1×1 Meister</option>
-                  <option value="plusminus">➕ Zahlenheld</option>
-                </select>
-              </div>
-
-              <button
-                type="button"
-                class="small-action-btn streak-edit-btn"
-                onclick={() =>
-                  editingStreakProfileId === prof.id
-                    ? (editingStreakProfileId = null)
-                    : openStreakEditor(prof)}
-                title="Streak manuell eingeben / wiederherstellen"
-              >
-                🔥 Streak ändern
-              </button>
-
-              <button
-                type="button"
-                class="small-action-btn reset-btn"
                 onclick={() => {
-                  confirmResetId = confirmResetId === prof.id ? null : prof.id;
-                  confirmDeleteId = null;
-                  editingStreakProfileId = null;
-                  editingNameProfileId = null;
-                }}
-                title="Lernstand für {prof.name} zurücksetzen"
-              >
-                🔄 Reset
-              </button>
-
-              <button
-                type="button"
-                class="small-action-btn delete-btn"
-                onclick={() => {
-                  confirmDeleteId = confirmDeleteId === prof.id ? null : prof.id;
+                  onRestoreBackup?.(prof.id);
                   confirmResetId = null;
-                  editingStreakProfileId = null;
-                  editingNameProfileId = null;
                 }}
-                title="Profil {prof.name} löschen"
+                class="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[11px] border-none cursor-pointer ml-auto flex items-center gap-1 transition shadow-xs"
+                title="Zuletzt zurückgesetzten Stand wiederherstellen"
+              >
+                <span>🔄</span> <span>Wiederherstellen</span>
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => (confirmResetId = confirmResetId === prof.id ? null : prof.id)}
+                class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-600 dark:text-slate-400 cursor-pointer ml-auto transition"
+                title="Lernstand zurücksetzen"
+              >
+                ↺ Zurücksetzen
+              </button>
+            {/if}
+            {#if profiles.length > 1}
+              <button
+                type="button"
+                onclick={() => (confirmDeleteId = confirmDeleteId === prof.id ? null : prof.id)}
+                class="px-2 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900 text-[11px] font-bold text-rose-600 dark:text-rose-400 cursor-pointer transition"
+                title="Profil löschen"
               >
                 🗑️
               </button>
-            </div>
+            {/if}
           </div>
 
-          <!-- Spielername & Figur bearbeiten -->
+          <!-- Inline Name-Editor -->
           {#if editingNameProfileId === prof.id}
-            <div class="inline-panel edit-profile-panel">
-              <label class="streak-label" for="name-edit-input-{prof.id}">
-                ✏️ Name &amp; Figur für <strong>{prof.name}</strong> anpassen:
-              </label>
+            <div class="mt-2.5 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs space-y-2">
               <input
-                id="name-edit-input-{prof.id}"
                 type="text"
-                maxlength="24"
-                class="name-input"
+                maxlength="20"
                 bind:value={editNameInput}
+                class="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-bold"
+                placeholder="Name"
               />
-              <div class="avatar-grid" role="group" aria-label="Neue Figur wählen">
+              <div class="flex items-center gap-1.5 flex-wrap">
                 {#each AVAILABLE_AVATARS as av (av)}
                   <button
                     type="button"
-                    class="avatar-choice"
-                    class:selected={editAvatarInput === av}
                     onclick={() => (editAvatarInput = av)}
-                    aria-label="Figur {av}"
+                    class="p-1 rounded-lg text-lg border cursor-pointer {
+                      editAvatarInput === av
+                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60'
+                        : 'border-transparent bg-slate-100 dark:bg-slate-800'
+                    }"
                   >
                     {av}
                   </button>
                 {/each}
               </div>
-              <div class="inline-btn-group">
+              <div class="flex items-center gap-2">
                 <button
                   type="button"
-                  class="save-profile-btn"
-                  disabled={editNameInput.trim().length === 0}
                   onclick={() => saveProfileEdit(prof.id)}
+                  class="flex-1 py-1.5 rounded-lg bg-indigo-600 text-white font-bold text-xs border-none cursor-pointer"
                 >
-                  Änderung speichern
+                  Speichern
                 </button>
                 <button
                   type="button"
-                  class="cancel-inline-btn"
                   onclick={() => (editingNameProfileId = null)}
+                  class="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs border-none cursor-pointer"
                 >
                   Abbrechen
                 </button>
@@ -309,67 +381,49 @@
             </div>
           {/if}
 
-          <!-- Manuelle Streak-Eingabe -->
+          <!-- Inline Streak-Editor -->
           {#if editingStreakProfileId === prof.id}
-            <div class="inline-panel streak-panel">
-              <span class="streak-label">
-                🔥 Tages-Streak für <strong>{prof.name}</strong> manuell setzen (Wiederherstellung):
-              </span>
-              <div class="inline-btn-group">
-                <button
-                  type="button"
-                  class="cancel-inline-btn"
-                  style={editingStreakMode === 'mult' ? 'border-color: #4f46e5; background: #eef2ff; color: #312e81;' : ''}
-                  onclick={() => switchStreakEditorMode(prof, 'mult')}
-                >
-                  ✖️ 1×1 Meister ({prof.stats.streakDays})
-                </button>
-                <button
-                  type="button"
-                  class="cancel-inline-btn"
-                  style={editingStreakMode === 'plusminus' ? 'border-color: #0d9488; background: #f0fdfa; color: #115e59;' : ''}
-                  onclick={() => switchStreakEditorMode(prof, 'plusminus')}
-                >
-                  ➕ Zahlenheld ({prof.plusMinusStats.streakDays})
-                </button>
-              </div>
-              <div class="streak-input-row">
+            <div class="mt-2.5 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs space-y-2">
+              <label class="block text-[11px] text-slate-500 dark:text-slate-400" for="streak-val-{prof.id}">
+                🔥 Tages-Streak manuell setzen:
+              </label>
+              <div class="flex items-center gap-2">
                 <input
-                  id="streak-input-{prof.id}"
+                  id="streak-val-{prof.id}"
                   type="number"
                   min="0"
                   max="9999"
-                  class="streak-number-input"
                   bind:value={manualStreakInput}
+                  class="w-24 p-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white font-bold text-center"
                 />
                 <button
                   type="button"
-                  class="save-inline-btn"
                   onclick={() => saveStreak(prof.id)}
+                  class="flex-1 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs border-none cursor-pointer"
                 >
-                  Streak speichern
+                  Streak anpassen
                 </button>
                 <button
                   type="button"
-                  class="cancel-inline-btn"
                   onclick={() => (editingStreakProfileId = null)}
+                  class="px-2 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs border-none cursor-pointer"
                 >
-                  Abbrechen
+                  ✕
                 </button>
               </div>
             </div>
           {/if}
 
-          <!-- Bestätigung: Einzelnes Profil (oder einzelnen Modus) zurücksetzen -->
+          <!-- Bestätigung: Lernstand zurücksetzen mit Modus-Auswahl & Wiederherstellen -->
           {#if confirmResetId === prof.id}
-            <div class="inline-panel warn-panel">
-              <span>
+            <div class="mt-2.5 p-3 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs space-y-2">
+              <span class="block font-bold text-amber-950 dark:text-amber-200">
                 Welchen Lernstand von <strong>{prof.name}</strong> möchtest du zurücksetzen?
               </span>
-              <div class="inline-btn-group">
+              <div class="grid grid-cols-2 gap-1.5 pt-1">
                 <button
                   type="button"
-                  class="danger-confirm-btn"
+                  class="py-2 px-2 rounded-lg bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white font-extrabold text-[11px] border-none cursor-pointer text-center transition"
                   onclick={() => {
                     onResetProfile(prof.id, 'mult');
                     confirmResetId = null;
@@ -379,7 +433,7 @@
                 </button>
                 <button
                   type="button"
-                  class="danger-confirm-btn"
+                  class="py-2 px-2 rounded-lg bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white font-extrabold text-[11px] border-none cursor-pointer text-center transition"
                   onclick={() => {
                     onResetProfile(prof.id, 'plusminus');
                     confirmResetId = null;
@@ -389,17 +443,35 @@
                 </button>
                 <button
                   type="button"
-                  class="danger-confirm-btn"
+                  class="col-span-2 py-2 px-2 rounded-lg bg-rose-700 hover:bg-rose-600 text-white font-black text-[11px] border-none cursor-pointer text-center transition"
                   onclick={() => {
                     onResetProfile(prof.id, 'both');
                     confirmResetId = null;
                   }}
                 >
-                  Beide Modi
+                  ⚠️ Beide Modi komplett zurücksetzen
                 </button>
+              </div>
+
+              {#if lastBackup && lastBackup.profileId === prof.id && onRestoreBackup}
+                <div class="pt-1.5 border-t border-amber-200 dark:border-amber-900/60">
+                  <button
+                    type="button"
+                    class="w-full py-2 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] border-none cursor-pointer flex items-center justify-center gap-1.5 transition"
+                    onclick={() => {
+                      onRestoreBackup(prof.id);
+                      confirmResetId = null;
+                    }}
+                  >
+                    <span>🔄</span> <span>Letzten Stand wiederherstellen</span>
+                  </button>
+                </div>
+              {/if}
+
+              <div class="pt-1 text-right">
                 <button
                   type="button"
-                  class="cancel-inline-btn"
+                  class="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs border-none cursor-pointer"
                   onclick={() => (confirmResetId = null)}
                 >
                   Abbrechen
@@ -408,16 +480,16 @@
             </div>
           {/if}
 
-          <!-- Bestätigung: Einzelnes Profil löschen -->
+          <!-- Bestätigung: Profil löschen -->
           {#if confirmDeleteId === prof.id}
-            <div class="inline-panel warn-panel">
-              <span>
-                Benutzerprofil <strong>{prof.name}</strong> wirklich komplett löschen?
+            <div class="mt-2.5 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-900 text-xs space-y-2">
+              <span class="block font-bold text-rose-950 dark:text-rose-200">
+                Nutzerprofil <strong>{prof.name}</strong> wirklich komplett löschen?
               </span>
-              <div class="inline-btn-group">
+              <div class="flex items-center gap-2 pt-1">
                 <button
                   type="button"
-                  class="danger-confirm-btn"
+                  class="flex-1 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs border-none cursor-pointer"
                   onclick={() => {
                     onDeleteProfile(prof.id);
                     confirmDeleteId = null;
@@ -427,7 +499,7 @@
                 </button>
                 <button
                   type="button"
-                  class="cancel-inline-btn"
+                  class="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs border-none cursor-pointer"
                   onclick={() => (confirmDeleteId = null)}
                 >
                   Abbrechen
@@ -437,553 +509,75 @@
           {/if}
         </div>
       {/each}
-    </div>
-  </div>
 
-  <!-- Neuen Benutzer anlegen -->
-  <div class="section-card">
-    <h3 class="card-heading">Neuen Benutzer anlegen</h3>
-    <form class="create-form" onsubmit={handleAddProfile}>
-      <div class="form-row">
-        <label class="field-label" for="new-user-name">Name des Spielers:</label>
-        <input
-          id="new-user-name"
-          type="text"
-          maxlength="24"
-          placeholder="z. B. Mia, Leon, Max ..."
-          class="name-input"
-          bind:value={newName}
-          required
-        />
-      </div>
-
-      <div class="form-row">
-        <span class="field-label">Figur / Avatar wählen:</span>
-        <div class="avatar-grid" role="group" aria-label="Avatar auswählen">
-          {#each AVAILABLE_AVATARS as av (av)}
-            <button
-              type="button"
-              class="avatar-choice"
-              class:selected={selectedAvatar === av}
-              onclick={() => (selectedAvatar = av)}
-              aria-label="Avatar {av}"
-            >
-              {av}
-            </button>
-          {/each}
-        </div>
-      </div>
-
-      <button
-        type="submit"
-        class="create-submit-btn"
-        disabled={newName.trim().length === 0}
+      <!-- Neuen Spieler hinzufügen mit direkter Icon-Auswahl -->
+      <form
+        onsubmit={handleAddProfile}
+        class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-300 dark:border-slate-700 text-xs space-y-2.5"
       >
-        + Benutzer anlegen
-      </button>
-    </form>
-  </div>
-
-  <!-- Logo-Auswahl für App & Startbildschirm -->
-  <div class="section-card">
-    <h3 class="card-heading">App- &amp; Startbildschirm-Logo wählen</h3>
-    <p class="subtitle" style="margin-bottom: 10px;">
-      Wähle dein Lieblings-Klassentier! Es erscheint sofort oben in der App und wird auch als Icon genutzt, wenn du die App <strong>als App installierst / zum Startbildschirm hinzufügst</strong>:
-    </p>
-    <div class="logo-proposals-grid">
-      {#each logoOptions as opt (opt.id)}
-        <button
-          type="button"
-          class="logo-option-card"
-          class:selected={logoVariant === opt.id}
-          onclick={() => handleSelectLogoOption(opt.id)}
-        >
-          <BrandLogo variant={opt.id} size={54} />
-          <div class="logo-opt-text">
-            <span class="logo-opt-title">{opt.title}</span>
-            <span class="logo-opt-sub">{opt.subtitle}</span>
-          </div>
-        </button>
-      {/each}
-    </div>
-
-    {#if logoChangedNotice}
-      <div class="inline-panel edit-profile-panel" style="margin-top: 12px;">
-        <span>
-          💡 <strong>Tipp für Android App-Installation:</strong> Lade die Seite einmal kurz neu, bevor du im Chrome-Menü auf <em>„App installieren“</em> tippst – dann übernimmt Android garantiert dieses neue Tier-Icon ohne Chrome-Zeichen!
+        <span class="font-extrabold text-slate-700 dark:text-slate-200 block text-xs">
+          ➕ Weiteren Nutzer anlegen:
         </span>
-        <div class="inline-btn-group">
+
+        <!-- Direkte Avatar-Auswahl -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              Tier-Icon auswählen:
+            </span>
+            <span class="text-xl">{selectedAvatar}</span>
+          </div>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            {#each AVAILABLE_AVATARS as av (av)}
+              <button
+                type="button"
+                onclick={() => (selectedAvatar = av)}
+                class="w-8 h-8 rounded-lg text-lg border cursor-pointer flex items-center justify-center transition {
+                  selectedAvatar === av
+                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/70 shadow-xs'
+                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80'
+                }"
+              >
+                {av}
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <input
+            type="text"
+            maxlength="20"
+            bind:value={newName}
+            placeholder="Name des Kindes"
+            class="flex-1 p-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold"
+          />
           <button
-            type="button"
-            class="save-profile-btn"
-            onclick={() => window.location.reload()}
+            type="submit"
+            disabled={!newName.trim()}
+            class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-extrabold border-none cursor-pointer transition shadow-xs"
           >
-            🔄 Seite jetzt kurz neu laden
+            Hinzufügen
           </button>
         </div>
-      </div>
-    {/if}
+      </form>
+    </section>
 
-    {#if canInstallPWA}
-      <div style="margin-top: 12px;">
-        <button
-          type="button"
-          class="create-submit-btn"
-          style="width: 100%; background: #059669;"
-          onclick={() => triggerPWAInstall()}
-        >
-          📲 Jetzt als echte App installieren
-        </button>
-      </div>
-    {/if}
+    <button
+      type="button"
+      onclick={onClose}
+      class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs border-none cursor-pointer transition shadow-sm"
+    >
+      Fertig &amp; Schließen
+    </button>
+
+    <div class="text-center pt-1 pb-1">
+      <a
+        href="./v1/"
+        class="text-[11px] text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium hover:underline inline-block"
+      >
+        Zur klassischen Version (v1) wechseln ›
+      </a>
+    </div>
   </div>
-</section>
-
-<style>
-  .user-modal-view {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding-bottom: 24px;
-  }
-
-  .header-card,
-  .section-card {
-    background: #ffffff;
-    border-radius: 20px;
-    padding: 16px;
-    border: 2px solid #e0e7ff;
-    box-shadow: 0 4px 16px rgba(79, 70, 229, 0.06);
-  }
-
-  .header-top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  h2 {
-    margin: 0;
-    font-size: 1.3rem;
-    color: #1e1b4b;
-  }
-
-  .card-heading {
-    margin: 0 0 12px;
-    font-size: 1rem;
-    font-weight: 800;
-    color: #312e81;
-  }
-
-  .subtitle {
-    margin: 4px 0 0;
-    font-size: 0.84rem;
-    color: #64748b;
-  }
-
-  .back-btn {
-    background: #eef2ff;
-    color: #4338ca;
-    border: 2px solid #c7d2fe;
-    border-radius: 12px;
-    padding: 8px 14px;
-    font-weight: 800;
-    font-size: 0.9rem;
-    cursor: pointer;
-    white-space: nowrap;
-    font-family: inherit;
-  }
-
-  .profiles-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .profile-item {
-    border: 2px solid #e2e8f0;
-    border-radius: 16px;
-    padding: 10px 12px;
-    background: #f8fafc;
-    transition: all 0.15s ease;
-  }
-
-  .profile-item.active {
-    border-color: #4f46e5;
-    background: #eef2ff;
-  }
-
-  .profile-main-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  .profile-select-btn {
-    flex: 1;
-    min-width: 180px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: transparent;
-    border: none;
-    padding: 2px 0;
-    text-align: left;
-    cursor: pointer;
-    font-family: inherit;
-  }
-
-  .prof-avatar {
-    font-size: 1.85rem;
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    background: #ffffff;
-    border: 1.5px solid #cbd5e1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .prof-info {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .prof-name-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .prof-name {
-    font-size: 1rem;
-    font-weight: 900;
-    color: #1e1b4b;
-  }
-
-  .active-badge {
-    background: #4f46e5;
-    color: #ffffff;
-    font-size: 0.68rem;
-    font-weight: 800;
-    padding: 2px 7px;
-    border-radius: 999px;
-    text-transform: uppercase;
-  }
-
-  .prof-stats {
-    font-size: 0.78rem;
-    font-weight: 700;
-    color: #475569;
-  }
-
-  .profile-actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-
-  .small-action-btn {
-    border: 1.5px solid #cbd5e1;
-    background: #ffffff;
-    color: #334155;
-    border-radius: 10px;
-    padding: 6px 9px;
-    font-size: 0.76rem;
-    font-weight: 800;
-    cursor: pointer;
-    font-family: inherit;
-  }
-
-  .mode-select-wrap {
-    display: inline-flex;
-    align-items: center;
-  }
-
-  .small-action-select {
-    border: 1.5px solid #c7d2fe;
-    background-color: #eef2ff;
-    color: #3730a3;
-    border-radius: 10px;
-    padding: 6px 24px 6px 9px;
-    font-size: 0.76rem;
-    font-weight: 800;
-    cursor: pointer;
-    font-family: inherit;
-    appearance: none;
-    -webkit-appearance: none;
-    line-height: 1.2;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%233730a3' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 7px center;
-    transition: all 0.15s ease;
-  }
-
-  .small-action-select:hover {
-    filter: brightness(0.97);
-  }
-
-  .small-action-select:focus {
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
-  }
-
-  .small-action-select.is-pm {
-    border-color: #99f6e4;
-    background-color: #f0fdfa;
-    color: #0f766e;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%230f766e' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  }
-
-  .edit-name-btn {
-    background: #eef2ff;
-    border-color: #c7d2fe;
-    color: #3730a3;
-  }
-
-  .streak-edit-btn {
-    background: #ffedd5;
-    border-color: #fed7aa;
-    color: #9a3412;
-  }
-
-  .reset-btn:hover {
-    background: #fef3c7;
-    border-color: #fde68a;
-  }
-
-  .delete-btn:hover {
-    background: #fee2e2;
-    border-color: #fecaca;
-  }
-
-  .inline-panel {
-    margin-top: 10px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    font-size: 0.84rem;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .edit-profile-panel {
-    background: #f5f7ff;
-    border: 1.5px solid #a5b4fc;
-    color: #1e1b4b;
-  }
-
-  .save-profile-btn {
-    background: #4f46e5;
-    color: #ffffff;
-    border: none;
-    border-radius: 10px;
-    padding: 8px 12px;
-    font-weight: 800;
-    font-size: 0.82rem;
-    cursor: pointer;
-    font-family: inherit;
-  }
-
-  .save-profile-btn:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
-
-  .streak-panel {
-    background: #fff7ed;
-    border: 1.5px solid #fdba74;
-    color: #7c2d12;
-  }
-
-  .warn-panel {
-    background: #fef2f2;
-    border: 1.5px solid #fca5a5;
-    color: #991b1b;
-    font-weight: 700;
-  }
-
-  .streak-label {
-    font-size: 0.82rem;
-  }
-
-  .streak-input-row,
-  .inline-btn-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .streak-number-input {
-    width: 90px;
-    padding: 7px 10px;
-    border-radius: 10px;
-    border: 2px solid #fb923c;
-    font-size: 0.95rem;
-    font-weight: 800;
-    font-family: inherit;
-  }
-
-  .save-inline-btn {
-    background: #ea580c;
-    color: #ffffff;
-    border: none;
-    border-radius: 10px;
-    padding: 8px 12px;
-    font-weight: 800;
-    font-size: 0.82rem;
-    cursor: pointer;
-    font-family: inherit;
-  }
-
-  .danger-confirm-btn {
-    background: #dc2626;
-    color: #ffffff;
-    border: none;
-    border-radius: 10px;
-    padding: 7px 12px;
-    font-weight: 800;
-    font-size: 0.82rem;
-    cursor: pointer;
-    font-family: inherit;
-  }
-
-  .cancel-inline-btn {
-    background: #ffffff;
-    color: #334155;
-    border: 1.5px solid #cbd5e1;
-    border-radius: 10px;
-    padding: 7px 12px;
-    font-weight: 700;
-    font-size: 0.82rem;
-    cursor: pointer;
-    font-family: inherit;
-  }
-
-  .create-form {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .form-row {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .field-label {
-    font-size: 0.84rem;
-    font-weight: 800;
-    color: #334155;
-  }
-
-  .name-input {
-    padding: 10px 12px;
-    border-radius: 12px;
-    border: 2px solid #cbd5e1;
-    font-size: 0.98rem;
-    font-weight: 700;
-    font-family: inherit;
-    color: #1e1b4b;
-  }
-
-  .name-input:focus {
-    outline: none;
-    border-color: #4f46e5;
-  }
-
-  .avatar-grid {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 8px;
-  }
-
-  .avatar-choice {
-    min-height: 44px;
-    border-radius: 12px;
-    border: 2px solid #e2e8f0;
-    background: #f8fafc;
-    font-size: 1.4rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.12s ease;
-  }
-
-  .avatar-choice.selected {
-    border-color: #4f46e5;
-    background: #eef2ff;
-    transform: scale(1.06);
-  }
-
-  .create-submit-btn {
-    min-height: 48px;
-    border: none;
-    border-radius: 14px;
-    background: #4f46e5;
-    color: #ffffff;
-    font-family: inherit;
-    font-size: 0.96rem;
-    font-weight: 800;
-    cursor: pointer;
-  }
-
-  .create-submit-btn:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
-
-  .logo-proposals-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-    gap: 10px;
-  }
-
-  .logo-option-card {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px;
-    border-radius: 14px;
-    border: 2px solid #e2e8f0;
-    background: #f8fafc;
-    cursor: pointer;
-    text-align: left;
-    font-family: inherit;
-    transition: all 0.12s ease;
-  }
-
-  .logo-option-card.selected {
-    border-color: #4f46e5;
-    background: #eef2ff;
-    box-shadow: 0 3px 10px rgba(79, 70, 229, 0.14);
-  }
-
-  .logo-opt-text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .logo-opt-title {
-    font-size: 0.86rem;
-    font-weight: 800;
-    color: #1e1b4b;
-  }
-
-  .logo-opt-sub {
-    font-size: 0.74rem;
-    color: #64748b;
-  }
-</style>
-
+</div>

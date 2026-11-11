@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { formatEquationParts } from '../../lib/generator';
-  import { getCardMastery } from '../../lib/sm2';
-  import type { GameMode, TaskCard } from '../../lib/types';
+  import { formatEquationParts } from '../lib/generator';
+  import { getCardMastery } from '../lib/sm2';
+  import type { GameMode, TaskCard } from '../lib/types';
 
   export type HeatmapStatus =
     | 'new'

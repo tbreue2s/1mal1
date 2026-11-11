@@ -17,20 +17,33 @@
     <link rel="icon" type="image/png" href="./pwa/penguin-192.png" />
     <link rel="apple-touch-icon" href="./pwa/penguin-180.png" />
     <link rel="manifest" href="./manifest-penguin.webmanifest" />
-    <title>1×1 Meister – Kleines Einmaleins lernen</title>
+    <title>1×1 Meister &amp; Zahlen-Held</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
     <script>
-      try {
-        var savedLogo = localStorage.getItem('einmaleins_logo_v1');
-        var validLogos = ['penguin', 'otter', 'owl', 'rocket', 'fox'];
-        if (savedLogo && validLogos.indexOf(savedLogo) !== -1) {
-          var iconEl = document.querySelector('link[rel="icon"]');
-          if (iconEl) iconEl.href = './pwa/' + savedLogo + '-192.png';
-          var touchEl = document.querySelector('link[rel="apple-touch-icon"]');
-          if (touchEl) touchEl.href = './pwa/' + savedLogo + '-180.png';
-          var manifestEl = document.querySelector('link[rel="manifest"]');
-          if (manifestEl) manifestEl.href = './manifest-' + savedLogo + '.webmanifest';
-        }
-      } catch (e) {}
+      (function() {
+        try {
+          var mode = localStorage.getItem('v2_theme_preference') || 'system';
+          var isDark = mode === 'dark' || (mode === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+          }
+          var savedLogo = localStorage.getItem('einmaleins_logo_v1');
+          var validLogos = ['penguin', 'otter', 'owl', 'rocket', 'fox'];
+          if (savedLogo && validLogos.indexOf(savedLogo) !== -1) {
+            var iconEl = document.querySelector('link[rel="icon"]');
+            if (iconEl) iconEl.href = './pwa/' + savedLogo + '-192.png';
+            var touchEl = document.querySelector('link[rel="apple-touch-icon"]');
+            if (touchEl) touchEl.href = './pwa/' + savedLogo + '-180.png';
+            var manifestEl = document.querySelector('link[rel="manifest"]');
+            if (manifestEl) manifestEl.href = './manifest-' + savedLogo + '.webmanifest';
+          }
+        } catch (e) {}
+      })();
     </script>
   </head>
   <body>
@@ -38,4 +51,3 @@
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>
-

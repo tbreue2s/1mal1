@@ -1,6 +1,6 @@
-import { getCardMastery, getMatrixCellStatus } from '../../lib/sm2';
-import { smartShuffle } from '../../lib/storage';
-import type { GameMode, PlusMinusFocus, TaskCard } from '../../lib/types';
+import { getCardMastery, getMatrixCellStatus } from './sm2';
+import { smartShuffle } from './storage';
+import type { GameMode, PlusMinusFocus, TaskCard } from './types';
 
 export interface StarProgress {
   current: number;

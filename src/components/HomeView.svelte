@@ -1,859 +1,481 @@
 <script lang="ts">
-  import { getMatrixCellStatus } from '../lib/sm2';
   import { countDueCards } from '../lib/storage';
-  import type {
-    GameMode,
-    LearningMode,
-    PlusMinusFocus,
-    TaskCard,
-    TypeFilter,
-    UserStats,
-  } from '../lib/types';
+  import type { GameMode, TaskCard, UserProfile, UserStats } from '../lib/types';
+  import { getWorldChapters, type WorldChapter } from '../lib/chapters';
+  import Heatmap from './Heatmap.svelte';
 
   interface Props {
     gameMode: GameMode;
     cards: TaskCard[];
     stats: UserStats;
-    onUpdateSettings: (partial: Partial<UserStats>) => void;
+    activeProfile: UserProfile;
+    soundEnabled: boolean;
+    onToggleSound: () => void;
     onStartSession: () => void;
+    onStartRowSession: (row: number) => void;
+    onStartCustomSession: (cards: TaskCard[]) => void;
+    onStartChapterSession: (chapter: WorldChapter) => void;
     onOpenMatrix: () => void;
+    onOpenUsers: () => void;
+    onOpenLegal: () => void;
   }
 
   let {
     gameMode,
     cards,
     stats,
-    onUpdateSettings,
+    activeProfile,
+    soundEnabled,
+    onToggleSound,
     onStartSession,
+    onStartRowSession,
+    onStartCustomSession,
+    onStartChapterSession,
     onOpenMatrix,
+    onOpenUsers,
+    onOpenLegal,
   }: Props = $props();
 
-  const allRows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-
+  let chapters = $derived(getWorldChapters(cards, gameMode));
   let dueCount = $derived(countDueCards(cards, stats.typeFilter, gameMode));
 
-  let matrixSummary = $derived.by(() => {
-    let mastered = 0;
-    let learning = 0;
-    let fresh = 0;
-
-    for (let a = 1; a <= 10; a++) {
-      for (let b = 1; b <= 10; b++) {
-        const cellCards = cards.filter((c) => c.fact[0] === a && c.fact[1] === b);
-        const st = getMatrixCellStatus(cellCards);
-        if (st === 'mastered') mastered++;
-        else if (st === 'learning') learning++;
-        else fresh++;
-      }
-    }
-    return { mastered, learning, fresh };
-  });
-
-  function setMode(mode: LearningMode) {
-    onUpdateSettings({ learningMode: mode });
-  }
-
-  function setTypeFilter(typeFilter: TypeFilter) {
-    onUpdateSettings({ typeFilter });
-  }
-
-  function setPlusMinusFocus(focus: PlusMinusFocus) {
-    onUpdateSettings({ plusMinusFocus: focus, learningMode: 'rows' });
-  }
-
-  function toggleRow(row: number) {
-    const current = stats.selectedRows;
-    if (current.includes(row)) {
-      if (current.length > 1) {
-        onUpdateSettings({
-          selectedRows: current.filter((r) => r !== row).sort((a, b) => a - b),
-          plusMinusFocus: 'rows',
-        });
-      }
-    } else {
-      onUpdateSettings({
-        selectedRows: [...current, row].sort((a, b) => a - b),
-        plusMinusFocus: 'rows',
-      });
-    }
-  }
-
-  function selectPresetRows(rows: number[]) {
-    onUpdateSettings({
-      selectedRows: rows,
-      learningMode: 'rows',
-      plusMinusFocus: 'rows',
-    });
-  }
-
-  function getRowMasteredPercent(row: number): number {
-    let mastered = 0;
-    for (let a = 1; a <= 10; a++) {
-      const cellCards = cards.filter((c) => c.fact[0] === a && c.fact[1] === row);
-      if (getMatrixCellStatus(cellCards) === 'mastered') {
-        mastered++;
-      }
-    }
-    return mastered * 10;
-  }
-
-  let focusBadgeText = $derived.by(() => {
-    if (gameMode === 'mult') {
-      return `${stats.selectedRows.length} gewählt`;
-    }
-    const f = stats.plusMinusFocus ?? 'up_to_10';
-    if (f === 'number_bonds_10') return 'Verliebte Zahlen ❤️';
-    if (f === 'up_to_10') return 'Bis 10';
-    if (f === 'over_10') return 'Zehnerübergang';
-    if (f === 'doubles') return 'Verdoppeln';
-    return `${stats.selectedRows.length} Reihen`;
-  });
+  let selectedChapter = $state<WorldChapter | null>(null);
 </script>
 
-<div class="home-view">
-  <!-- Lern-Modus Auswahl -->
-  <section class="card-section" aria-label="Lern-Modus wählen">
-    <h2 class="section-title">1. Wähle deinen Lern-Modus</h2>
-
-    <div class="mode-cards">
-      <button
-        type="button"
-        class="mode-card"
-        class:active={stats.learningMode === 'daily'}
-        onclick={() => setMode('daily')}
-      >
-        <div class="mode-icon">🧠</div>
-        <div class="mode-content">
-          <div class="mode-title-row">
-            <span class="mode-name">Tages-Training</span>
-            <span class="badge-pill">Spaced Repetition</span>
-          </div>
-          <p class="mode-desc">
-            {#if gameMode === 'mult'}
-              Mischt schlaue 1×1-Wiederholungen mit neuen Aufgaben passend zu deinem Tempo.
-            {:else}
-              Startet mit Aufgaben bis 10 &amp; Verliebten Zahlen und steigert sich zum Zehnerübergang.
-            {/if}
-          </p>
-          <div class="due-info">
-            {#if dueCount > 0}
-              <span class="due-badge due-active">🔔 {dueCount} Wiederholungen fällig</span>
-            {:else}
-              <span class="due-badge">✨ Bereit für neue Aufgaben</span>
-            {/if}
-          </div>
-        </div>
-      </button>
-
-      <button
-        type="button"
-        class="mode-card"
-        class:active={stats.learningMode === 'rows'}
-        onclick={() => setMode('rows')}
-      >
-        <div class="mode-icon">🎯</div>
-        <div class="mode-content">
-          <div class="mode-title-row">
-            <span class="mode-name">
-              {gameMode === 'mult' ? 'Fokus-Reihen' : 'Fokus-Themen & Reihen'}
-            </span>
-            <span class="badge-pill">{focusBadgeText}</span>
-          </div>
-          <p class="mode-desc">
-            {#if gameMode === 'mult'}
-              Übe gezielt einzelne 1×1-Reihen (z.&nbsp;B. nur die 2er-, 5er- und 10er-Reihe).
-            {:else}
-              Übe gezielt Verliebte Zahlen ❤️, Aufgaben bis 10, Zehnerübergänge, Verdoppeln oder Plus-Reihen.
-            {/if}
-          </p>
-        </div>
-      </button>
-    </div>
-
-    {#if stats.learningMode === 'rows'}
-      {#if gameMode === 'mult'}
-        <div class="rows-selector-box">
-          <div class="rows-header">
-            <span class="rows-label">Welche 1×1-Reihen möchtest du üben?</span>
-            <div class="preset-chips">
-              <button
-                type="button"
-                class="chip-btn"
-                onclick={() => selectPresetRows([2, 5, 10])}
-              >
-                2er, 5er, 10er
-              </button>
-              <button
-                type="button"
-                class="chip-btn"
-                onclick={() => selectPresetRows([1, 2, 4, 5, 10])}
-              >
-                Kern-Reihen
-              </button>
-              <button
-                type="button"
-                class="chip-btn"
-                onclick={() => selectPresetRows([6, 7, 8, 9])}
-              >
-                6er–9er
-              </button>
-              <button
-                type="button"
-                class="chip-btn"
-                onclick={() => selectPresetRows([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])}
-              >
-                Alle
-              </button>
-            </div>
-          </div>
-
-          <div class="rows-grid" role="group" aria-label="1 mal 1 Reihen auswählen">
-            {#each allRows as r (r)}
-              {@const isSelected = stats.selectedRows.includes(r)}
-              {@const pct = getRowMasteredPercent(r)}
-              <button
-                type="button"
-                class="row-btn"
-                class:selected={isSelected}
-                onclick={() => toggleRow(r)}
-                aria-pressed={isSelected}
-              >
-                <span class="row-num">{r}er</span>
-                <span class="row-mini-bar">
-                  <span class="row-mini-fill" style="width: {pct}%"></span>
-                </span>
-              </button>
-            {/each}
-          </div>
-        </div>
-      {:else}
-        <!-- Zahlenheld: Didaktische Fokus-Bereiche (Verliebte Zahlen, Bis 10, Zehnerübergang, Verdoppeln, Reihen) -->
-        {@const pmFocus = stats.plusMinusFocus ?? 'up_to_10'}
-        <div class="rows-selector-box">
-          <span class="rows-label">Wähle deinen Zahlenheld-Schwerpunkt:</span>
-
-          <div class="pm-focus-grid">
-            <button
-              type="button"
-              class="pm-focus-card pm-focus-wide"
-              class:selected={pmFocus === 'number_bonds_10'}
-              onclick={() => setPlusMinusFocus('number_bonds_10')}
-            >
-              <span class="pm-f-icon">❤️</span>
-              <span class="pm-f-title">Verliebte Zahlen (Immer 10)</span>
-              <span class="pm-f-sub">Partnerzahlen zur 10: 6 + 4 = 10 · 7 + ? = 10 · 10 − 3 = 7</span>
-            </button>
-
-            <button
-              type="button"
-              class="pm-focus-card"
-              class:selected={pmFocus === 'up_to_10'}
-              onclick={() => setPlusMinusFocus('up_to_10')}
-            >
-              <span class="pm-f-icon">🌱</span>
-              <span class="pm-f-title">Bis 10 &amp; Zerlegungen</span>
-              <span class="pm-f-sub">Zahlenraum bis 10 (z. B. 4 + 3 = 7)</span>
-            </button>
-
-            <button
-              type="button"
-              class="pm-focus-card"
-              class:selected={pmFocus === 'over_10'}
-              onclick={() => setPlusMinusFocus('over_10')}
-            >
-              <span class="pm-f-icon">🌉</span>
-              <span class="pm-f-title">Zehnerübergang</span>
-              <span class="pm-f-sub">Über die 10 (z. B. 7 + 5 = 12)</span>
-            </button>
-
-            <button
-              type="button"
-              class="pm-focus-card"
-              class:selected={pmFocus === 'doubles'}
-              onclick={() => setPlusMinusFocus('doubles')}
-            >
-              <span class="pm-f-icon">👯</span>
-              <span class="pm-f-title">Verdoppeln &amp; Nachbarn</span>
-              <span class="pm-f-sub">z. B. 6 + 6 = 12 · 6 + 7 = 13</span>
-            </button>
-
-            <button
-              type="button"
-              class="pm-focus-card"
-              class:selected={pmFocus === 'rows'}
-              onclick={() => setPlusMinusFocus('rows')}
-            >
-              <span class="pm-f-icon">🔢</span>
-              <span class="pm-f-title">Plus-Reihen (+1 bis +10)</span>
-              <span class="pm-f-sub">Gezielt einzelne Zahlen üben</span>
-            </button>
-          </div>
-
-          {#if pmFocus === 'rows'}
-            <div class="rows-header" style="margin-top: 10px;">
-              <span class="rows-label">Welche Plus-/Minus-Reihen möchtest du üben?</span>
-              <div class="preset-chips">
-                <button
-                  type="button"
-                  class="chip-btn"
-                  onclick={() => selectPresetRows([1, 2, 5, 10])}
-                >
-                  +1, +2, +5, +10
-                </button>
-                <button
-                  type="button"
-                  class="chip-btn"
-                  onclick={() => selectPresetRows([6, 7, 8, 9])}
-                >
-                  +6 bis +9
-                </button>
-                <button
-                  type="button"
-                  class="chip-btn"
-                  onclick={() => selectPresetRows([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])}
-                >
-                  Alle
-                </button>
-              </div>
-            </div>
-
-            <div class="rows-grid" role="group" aria-label="Plus-Reihen auswählen">
-              {#each allRows as r (r)}
-                {@const isSelected = stats.selectedRows.includes(r)}
-                {@const pct = getRowMasteredPercent(r)}
-                <button
-                  type="button"
-                  class="row-btn pm-row-btn"
-                  class:selected={isSelected}
-                  onclick={() => toggleRow(r)}
-                  aria-pressed={isSelected}
-                >
-                  <span class="row-num">+{r}</span>
-                  <span class="row-mini-bar">
-                    <span class="row-mini-fill" style="width: {pct}%"></span>
-                  </span>
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </div>
-      {/if}
-    {/if}
-  </section>
-
-  <!-- Aufgabentyp-Filter -->
-  <section class="card-section" aria-label="Aufgaben-Typ wählen">
-    <h2 class="section-title">2. Aufgaben-Typ</h2>
-    <div class="type-toggle-grid">
-      <button
-        type="button"
-        class="type-btn"
-        class:selected={stats.typeFilter === 'mult_only'}
-        onclick={() => setTypeFilter('mult_only')}
-      >
-        <span class="type-emoji">{gameMode === 'mult' ? '✖️' : '➕'}</span>
-        <span class="type-title">
-          {gameMode === 'mult' ? 'Nur Malnehmen' : 'Nur Plusrechnen'}
-        </span>
-        <span class="type-example">
-          {gameMode === 'mult' ? '3 × 4 = ?' : '7 + 5 = ?'}
-        </span>
-      </button>
-
-      <button
-        type="button"
-        class="type-btn"
-        class:selected={stats.typeFilter === 'all_types'}
-        onclick={() => setTypeFilter('all_types')}
-      >
-        <span class="type-emoji">🧩</span>
-        <span class="type-title">
-          {gameMode === 'mult' ? 'Auch Geteilt & Lücken' : 'Auch Minus & Lücken'}
-        </span>
-        <span class="type-example">
-          {gameMode === 'mult'
-            ? '12 : 4 = ? · ? × 4 = 12'
-            : '12 − 5 = ? · 7 + ? = 12'}
-        </span>
-      </button>
-    </div>
-  </section>
-
-  <!-- Start Button -->
-  <button
-    type="button"
-    class="start-cta-btn"
-    class:cta-pm={gameMode === 'plusminus'}
-    onclick={onStartSession}
-  >
-    <span class="cta-text">
-      {gameMode === 'mult' ? '1×1-Training' : 'Zahlenheld-Runde'} starten ({stats.sessionSize} Aufgaben)
-    </span>
-    <span class="cta-rocket">🚀</span>
-  </button>
-
-  <!-- Fortschritt & Matrix Vorschau -->
-  <section class="card-section matrix-preview-card" aria-label="Dein Lernfortschritt">
-    <div class="preview-header">
+<div class="w-full max-w-lg mx-auto space-y-3.5 pb-8">
+  <!-- 1. HEADER MIT STREAK, STERNE, QUICK SOUND & PROFIL -->
+  <header class="flex items-center justify-between bg-white dark:bg-[#111827] rounded-2xl p-3 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+    <button
+      type="button"
+      class="flex items-center gap-2.5 text-left bg-transparent border-none p-0 cursor-pointer"
+      onclick={onOpenUsers}
+      title="Spieler wechseln oder verwalten"
+    >
+      <div class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 flex items-center justify-center text-xl shadow-2xs">
+        {activeProfile.avatar}
+      </div>
       <div>
-        <h2 class="section-title">
-          {gameMode === 'mult' ? 'Deine 1×1-Matrix' : 'Deine 1+1-Tafel (bis 20)'}
-        </h2>
-        <p class="preview-sub">
-          <strong>{matrixSummary.mastered}</strong> von 100 gemeistert ·
-          <strong>{matrixSummary.learning}</strong> am Lernen
-        </p>
+        <div class="flex items-center gap-1.5">
+          <span class="font-extrabold text-slate-900 dark:text-slate-100 text-sm">
+            {activeProfile.name}
+          </span>
+          <span class="text-[9px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200/60 dark:border-indigo-800/40 px-1.5 py-0.2 rounded-md">
+            {gameMode === 'mult' ? '1×1' : '+ / −'}
+          </span>
+        </div>
+        <span class="text-[11px] font-medium text-slate-400 dark:text-slate-400">
+          {gameMode === 'mult' ? '1×1 Meister' : 'Zahlen-Held'} · Profil anpassen
+        </span>
       </div>
-      <button type="button" class="open-matrix-btn" onclick={onOpenMatrix}>
-        {gameMode === 'mult' ? '10×10 Tafel öffnen →' : '1+1 Tafel öffnen →'}
+    </button>
+
+    <div class="flex items-center gap-1.5 text-xs font-bold">
+      <!-- Streak mit Tagesstatus -->
+      <div
+        class="flex items-center gap-1 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-2 py-1 rounded-xl border border-amber-200/60 dark:border-amber-800/30"
+        title="Streak: {stats.streakDays} Tage"
+      >
+        <span>🔥 {stats.streakDays}</span>
+        {#if dueCount > 0}
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" title="Heute noch Training fällig"></span>
+        {:else}
+          <span class="text-[10px] text-emerald-500 font-black" title="Heute bereits erledigt">✓</span>
+        {/if}
+      </div>
+
+      <!-- Sterne-Counter -->
+      <div class="flex items-center gap-1 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/60 px-2 py-1 rounded-xl border border-slate-200/60 dark:border-slate-700/40">
+        <span class="text-xs text-amber-500">⭐</span>
+        <span>{stats.stars}</span>
+      </div>
+
+      <!-- Quick Sound Toggle -->
+      <button
+        type="button"
+        onclick={onToggleSound}
+        class="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs border border-transparent"
+        title={soundEnabled ? 'Ton stummschalten' : 'Ton aktivieren'}
+        aria-label="Ton an oder aus"
+      >
+        {soundEnabled ? '🔊' : '🔇'}
+      </button>
+
+      <!-- Optionen & Benutzerverwaltung -->
+      <button
+        type="button"
+        onclick={onOpenUsers}
+        class="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+        title="Einstellungen & Benutzer"
+        aria-label="Einstellungen öffnen"
+      >
+        ⚙️
       </button>
     </div>
+  </header>
 
-    <div class="mini-status-pills">
-      <div class="status-box box-green">
-        <span class="box-num">{matrixSummary.mastered}</span>
-        <span class="box-label">Gemeistert</span>
+  <!-- 2. HERO: TAGES-MISSION (SPACED REPETITION / SM-2) -->
+  <section class="bg-gradient-to-br from-indigo-950/90 via-[#0f172a] to-[#0f172a] rounded-3xl p-4 text-white border border-indigo-500/20 dark:border-slate-800 shadow-sm relative overflow-hidden" aria-label="Tages-Mission">
+    <div class="flex items-center justify-between text-xs mb-1.5">
+      <span class="text-[10px] uppercase tracking-wider font-extrabold text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded-full border border-indigo-400/20">
+        Tages-Mission
+      </span>
+      <span class="text-[11px] text-slate-300 font-medium flex items-center gap-1">
+        {#if dueCount > 0}
+          <span class="text-amber-400">●</span> {dueCount} Wiederholungen fällig
+        {:else}
+          <span class="text-emerald-400">✓</span> Alles aufgefrischt!
+        {/if}
+      </span>
+    </div>
+
+    <h2 class="text-base font-extrabold text-white mt-1">
+      {dueCount >= stats.sessionSize
+        ? `${stats.sessionSize} Auffrisch-Karten (Puffer)`
+        : `${stats.sessionSize} gemischte Trainings-Karten`}
+    </h2>
+    <p class="text-xs text-slate-300 mt-0.5">
+      {#if dueCount >= stats.sessionSize}
+        Auffrisch-Modus aktiv: Baut fällige Karten ab, bevor neue hinzukommen.
+      {:else}
+        {gameMode === 'mult'
+          ? 'Festigt 1×1-Aufgaben im Langzeitgedächtnis vor dem Vergessen.'
+          : 'Schult Verliebte Zahlen & Zehnerübergänge spielerisch im Kopf.'}
+      {/if}
+    </p>
+
+    <!-- Fortschrittsbalken -->
+    <div class="mt-3 flex items-center gap-2.5">
+      <div class="flex-1 bg-slate-800/90 rounded-full h-2 p-0.5 overflow-hidden">
+        <div
+          class="bg-indigo-400 h-full rounded-full transition-all duration-300"
+          style="width: {Math.min(100, Math.max(15, (stats.totalSolved % stats.sessionSize) * (100 / stats.sessionSize)))}%"
+        ></div>
       </div>
-      <div class="status-box box-yellow">
-        <span class="box-num">{matrixSummary.learning}</span>
-        <span class="box-label">Am Lernen</span>
+      <span class="text-xs font-bold text-slate-400 tabular-nums">
+        {stats.totalSolved % stats.sessionSize}/{stats.sessionSize}
+      </span>
+    </div>
+
+    <button
+      type="button"
+      onclick={onStartSession}
+      class="mt-3.5 w-full bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-extrabold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition btn-calm-primary cursor-pointer border-none"
+    >
+      <span>▶</span>
+      <span>Tages-Mission starten</span>
+    </button>
+  </section>
+
+  <!-- 3. RECHENWELTEN: 3 KAPITEL MIT 3-STERNE-PROGRESSION -->
+  <section class="bg-white dark:bg-[#111827] rounded-2xl p-3.5 border border-slate-200/80 dark:border-slate-800 shadow-xs" aria-label="Rechenwelten">
+    <div class="flex items-center justify-between mb-2">
+      <div>
+        <h3 class="text-xs font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5 m-0">
+          <span>🗺️</span> <span>Rechenwelten</span>
+        </h3>
+        <span class="text-[10px] text-slate-400">
+          Tippe auf eine Welt für Details &amp; Training
+        </span>
       </div>
-      <div class="status-box box-gray">
-        <span class="box-num">{matrixSummary.fresh}</span>
-        <span class="box-label">Noch neu</span>
-      </div>
+      <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+        ⭐ {chapters.reduce((acc, c) => acc + c.stars, 0)} / 9
+      </span>
+    </div>
+
+    <div class="grid grid-cols-3 gap-2">
+      {#each chapters as ch (ch.id)}
+        <button
+          type="button"
+          class="card-press text-left p-2.5 rounded-xl border transition cursor-pointer flex flex-col justify-between {
+            ch.stars < 3 && ch.stars > 0
+              ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-800/60'
+              : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60'
+          }"
+          onclick={() => (selectedChapter = ch)}
+        >
+          <div>
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-base">{ch.icon}</span>
+              <span
+                class="text-[9px] font-black px-1 rounded {
+                  ch.percent >= 90
+                    ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50'
+                    : ch.percent > 40
+                    ? 'text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50'
+                    : 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50'
+                }"
+              >
+                {ch.percent}%
+              </span>
+            </div>
+
+            <div class="font-extrabold text-[11px] text-slate-900 dark:text-slate-100 mt-1.5 leading-snug break-words hyphens-auto">
+              {ch.title}
+            </div>
+            <div class="text-[9.5px] text-slate-500 dark:text-slate-400 mt-0.5 break-words">
+              {ch.subtitle}
+            </div>
+          </div>
+
+          <div class="text-[10px] text-amber-500 mt-2 flex items-center justify-between">
+            <span>
+              {#if ch.stars === 3}
+                ⭐⭐⭐
+              {:else if ch.stars === 2}
+                ⭐⭐<span class="text-slate-300 dark:text-slate-600">⚪</span>
+              {:else if ch.stars === 1}
+                ⭐<span class="text-slate-300 dark:text-slate-600">⚪⚪</span>
+              {:else}
+                <span class="text-slate-300 dark:text-slate-600">⚪⚪⚪</span>
+              {/if}
+            </span>
+            <span class="text-[9px] text-indigo-500 font-bold">Info ›</span>
+          </div>
+        </button>
+      {/each}
     </div>
   </section>
+
+  <!-- 4. 10x10 WISSENSKARTE (HEATMAP DIREKT AUF DEM STARTBILDSCHIRM) -->
+  <Heatmap
+    {gameMode}
+    {cards}
+    onPracticeFact={onStartCustomSession}
+    onPracticeRow={onStartRowSession}
+    onOpenFullscreen={onOpenMatrix}
+  />
+
+  <!-- 5. FOOTER LINKS -->
+  <footer class="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 pt-1 px-1 font-medium gap-2">
+    <button
+      type="button"
+      onclick={onOpenUsers}
+      class="hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-xs"
+    >
+      <span>⚙️</span> <span>Optionen &amp; Nutzer</span>
+    </button>
+
+    <button
+      type="button"
+      onclick={onOpenLegal}
+      class="hover:text-slate-700 dark:hover:text-slate-300 bg-transparent border-none p-0 cursor-pointer text-[11px]"
+    >
+      Impressum &amp; Datenschutz
+    </button>
+
+    <div class="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
+      <span>App 2.0</span>
+      <button
+        type="button"
+        onclick={() => window.location.reload()}
+        class="hover:text-slate-700 dark:hover:text-slate-300 bg-transparent border-none p-0 cursor-pointer text-[11px] leading-none transition"
+        title="App neu laden"
+        aria-label="App neu laden"
+      >
+        🔄
+      </button>
+    </div>
+  </footer>
 </div>
 
-<style>
-  .home-view {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding-bottom: 20px;
-  }
+<!-- 6. KAPITEL-DRAWER (TRANSPARENTE STERNE-ÜBERSICHT) -->
+{#if selectedChapter !== null}
+  <div
+    class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-3"
+    onclick={(e) => {
+      if (e.target === e.currentTarget) selectedChapter = null;
+    }}
+    onkeydown={(e) => {
+      if (e.key === 'Escape') selectedChapter = null;
+    }}
+    role="dialog"
+    tabindex="-1"
+    aria-modal="true"
+    aria-label="Kapitel-Details"
+  >
+    <div
+      class="w-full max-w-md bg-white dark:bg-[#111827] border-2 border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-2xl animate-slide-up text-slate-800 dark:text-slate-100"
+    >
+      <!-- Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-3">
+        <div class="flex items-center gap-2.5">
+          <span class="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-2xl border border-indigo-200 dark:border-indigo-800">
+            {selectedChapter.icon}
+          </span>
+          <div>
+            <h4 class="text-sm font-extrabold text-slate-900 dark:text-white m-0">
+              {selectedChapter.title}
+            </h4>
+            <p class="text-[11px] text-slate-400 m-0">
+              {selectedChapter.subtitle} · {selectedChapter.statusText}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onclick={() => (selectedChapter = null)}
+          class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white text-xs font-bold border-none cursor-pointer flex items-center justify-center"
+        >
+          ✕
+        </button>
+      </div>
 
-  .card-section {
-    background: #ffffff;
-    border-radius: 22px;
-    padding: 16px;
-    border: 2px solid #e0e7ff;
-    box-shadow: 0 4px 16px rgba(79, 70, 229, 0.06);
-  }
+      <!-- Sterne-Erklärungsliste -->
+      <div class="space-y-2 mb-4">
+        <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">
+          So erreichst du die 3 Sterne:
+        </span>
 
-  .section-title {
-    margin: 0 0 10px;
-    font-size: 1rem;
-    font-weight: 800;
-    color: #312e81;
-  }
+        <!-- Stern 1 -->
+        <div
+          class="p-2.5 rounded-xl border flex items-start gap-2.5 {
+            selectedChapter.star1Progress.isAchieved
+              ? 'bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60'
+              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
+          }"
+        >
+          <span class="text-base leading-none">⭐</span>
+          <div class="flex-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-extrabold {selectedChapter.star1Progress.isAchieved ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-800 dark:text-slate-200'}">
+                Stern 1: Basis-Aufgaben
+              </span>
+              {#if selectedChapter.star1Progress.isAchieved}
+                <span class="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.2 rounded-md">
+                  Erreicht ✓
+                </span>
+              {:else}
+                <span class="text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/70 px-1.5 py-0.2 rounded-md">
+                  {selectedChapter.star1Progress.current} / {selectedChapter.star1Progress.total} gelernt ({selectedChapter.star1Progress.percent}%)
+                  {#if selectedChapter.star1Progress.consolidated > 0}
+                    · {selectedChapter.star1Progress.consolidated} gefestigt
+                  {/if}
+                </span>
+              {/if}
+            </div>
 
-  .mode-cards {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
+            <!-- Mini Fortschrittsbalken -->
+            <div class="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full mt-1.5 overflow-hidden">
+              <div
+                class="h-full rounded-full transition-all duration-300 {selectedChapter.star1Progress.isAchieved ? 'bg-emerald-500' : 'bg-indigo-500'}"
+                style="width: {selectedChapter.star1Progress.percent}%"
+              ></div>
+            </div>
 
-  .mode-card {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    text-align: left;
-    background: #f8fafc;
-    border: 2.5px solid #e2e8f0;
-    border-radius: 16px;
-    padding: 12px 14px;
-    cursor: pointer;
-    font-family: inherit;
-    transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
-  }
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 m-0 mt-1">
+              {selectedChapter.star1Desc}
+            </p>
+          </div>
+        </div>
 
-  .mode-card:hover {
-    border-color: #a5b4fc;
-  }
+        <!-- Stern 2 -->
+        <div
+          class="p-2.5 rounded-xl border flex items-start gap-2.5 {
+            selectedChapter.star2Progress.isAchieved
+              ? 'bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60'
+              : !selectedChapter.star2Progress.isUnlocked
+              ? 'opacity-60 bg-slate-50/40 dark:bg-slate-800/20 border-slate-200/50 dark:border-slate-800'
+              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
+          }"
+        >
+          <span class="text-base leading-none">⭐⭐</span>
+          <div class="flex-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-extrabold {selectedChapter.star2Progress.isAchieved ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-800 dark:text-slate-200'}">
+                Stern 2: Umkehraufgaben
+              </span>
+              {#if selectedChapter.star2Progress.isAchieved}
+                <span class="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.2 rounded-md">
+                  Erreicht ✓
+                </span>
+              {:else if selectedChapter.star2Progress.isUnlocked}
+                <span class="text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/70 px-1.5 py-0.2 rounded-md">
+                  {selectedChapter.star2Progress.current} / {selectedChapter.star2Progress.total} gelernt ({selectedChapter.star2Progress.percent}%)
+                  {#if selectedChapter.star2Progress.consolidated > 0}
+                    · {selectedChapter.star2Progress.consolidated} gefestigt
+                  {/if}
+                </span>
+              {:else}
+                <span class="text-[10px] font-bold text-slate-400">Gesperrt 🔒 (erst Stern 1)</span>
+              {/if}
+            </div>
 
-  .mode-card.active {
-    background: #eef2ff;
-    border-color: #4f46e5;
-    box-shadow: 0 3px 12px rgba(79, 70, 229, 0.14);
-  }
+            {#if selectedChapter.star2Progress.isUnlocked}
+              <div class="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full mt-1.5 overflow-hidden">
+                <div
+                  class="h-full rounded-full transition-all duration-300 {selectedChapter.star2Progress.isAchieved ? 'bg-emerald-500' : 'bg-indigo-500'}"
+                  style="width: {selectedChapter.star2Progress.percent}%"
+                ></div>
+              </div>
+            {/if}
 
-  .mode-icon {
-    font-size: 1.8rem;
-    line-height: 1;
-    padding-top: 2px;
-  }
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 m-0 mt-1">
+              {selectedChapter.star2Desc}
+            </p>
+          </div>
+        </div>
 
-  .mode-content {
-    flex: 1;
-  }
+        <!-- Stern 3 -->
+        <div
+          class="p-2.5 rounded-xl border flex items-start gap-2.5 {
+            selectedChapter.star3Progress.isAchieved
+              ? 'bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60'
+              : !selectedChapter.star3Progress.isUnlocked
+              ? 'opacity-60 bg-slate-50/40 dark:bg-slate-800/20 border-slate-200/50 dark:border-slate-800'
+              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
+          }"
+        >
+          <span class="text-base leading-none">⭐⭐⭐</span>
+          <div class="flex-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-extrabold {selectedChapter.star3Progress.isAchieved ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-800 dark:text-slate-200'}">
+                Stern 3: Lücken &amp; Meisterschaft
+              </span>
+              {#if selectedChapter.star3Progress.isAchieved}
+                <span class="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.2 rounded-md">
+                  Erreicht ✓
+                </span>
+              {:else if selectedChapter.star3Progress.isUnlocked}
+                <span class="text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/70 px-1.5 py-0.2 rounded-md">
+                  {selectedChapter.star3Progress.current} / {selectedChapter.star3Progress.total} gelernt ({selectedChapter.star3Progress.percent}%)
+                  {#if selectedChapter.star3Progress.consolidated > 0}
+                    · {selectedChapter.star3Progress.consolidated} gefestigt
+                  {/if}
+                </span>
+              {:else}
+                <span class="text-[10px] font-bold text-slate-400">Gesperrt 🔒 (erst Stern 2)</span>
+              {/if}
+            </div>
 
-  .mode-title-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
+            {#if selectedChapter.star3Progress.isUnlocked}
+              <div class="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full mt-1.5 overflow-hidden">
+                <div
+                  class="h-full rounded-full transition-all duration-300 {selectedChapter.star3Progress.isAchieved ? 'bg-emerald-500' : 'bg-indigo-500'}"
+                  style="width: {selectedChapter.star3Progress.percent}%"
+                ></div>
+              </div>
+            {/if}
 
-  .mode-name {
-    font-size: 1.05rem;
-    font-weight: 800;
-    color: #1e1b4b;
-  }
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 m-0 mt-1">
+              {selectedChapter.star3Desc}
+            </p>
+          </div>
+        </div>
+      </div>
 
-  .badge-pill {
-    font-size: 0.72rem;
-    font-weight: 800;
-    background: #e0e7ff;
-    color: #4338ca;
-    padding: 3px 9px;
-    border-radius: 999px;
-  }
-
-  .mode-desc {
-    margin: 4px 0 0;
-    font-size: 0.84rem;
-    color: #475569;
-    line-height: 1.35;
-  }
-
-  .due-info {
-    margin-top: 7px;
-  }
-
-  .due-badge {
-    display: inline-block;
-    font-size: 0.76rem;
-    font-weight: 700;
-    color: #047857;
-    background: #ecfdf5;
-    padding: 3px 9px;
-    border-radius: 8px;
-  }
-
-  .due-badge.due-active {
-    color: #b45309;
-    background: #fef3c7;
-  }
-
-  .rows-selector-box {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1.5px dashed #c7d2fe;
-  }
-
-  .rows-header {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 10px;
-  }
-
-  .rows-label {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #334155;
-    display: block;
-    margin-bottom: 8px;
-  }
-
-  .pm-focus-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-
-  .pm-focus-wide {
-    grid-column: 1 / -1;
-  }
-
-  .pm-focus-card {
-    border-radius: 14px;
-    border: 2px solid #cbd5e1;
-    background: #f8fafc;
-    padding: 10px;
-    cursor: pointer;
-    font-family: inherit;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-    text-align: left;
-    transition: all 0.12s ease;
-  }
-
-  .pm-focus-card:hover {
-    border-color: #2dd4bf;
-  }
-
-  .pm-focus-card.selected {
-    background: #f0fdfa;
-    border-color: #0d9488;
-    box-shadow: 0 3px 10px rgba(13, 148, 136, 0.16);
-  }
-
-  .pm-f-icon {
-    font-size: 1.25rem;
-  }
-
-  .pm-f-title {
-    font-size: 0.85rem;
-    font-weight: 900;
-    color: #134e4a;
-  }
-
-  .pm-f-sub {
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: #64748b;
-  }
-
-  .preset-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .chip-btn {
-    background: #f1f5f9;
-    color: #334155;
-    border: 1.5px solid #cbd5e1;
-    border-radius: 999px;
-    padding: 4px 10px;
-    font-size: 0.76rem;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: inherit;
-  }
-
-  .chip-btn:hover {
-    background: #e0e7ff;
-    border-color: #818cf8;
-    color: #312e81;
-  }
-
-  .rows-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 8px;
-  }
-
-  .row-btn {
-    min-height: 56px;
-    border-radius: 14px;
-    border: 2px solid #cbd5e1;
-    background: #f8fafc;
-    color: #475569;
-    font-family: inherit;
-    font-weight: 800;
-    font-size: 1rem;
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    padding: 6px;
-    touch-action: manipulation;
-    transition: all 0.12s ease;
-  }
-
-  .row-btn.selected {
-    background: #4f46e5;
-    border-color: #3730a3;
-    color: #ffffff;
-    box-shadow: 0 3px 0 #312e81;
-    transform: translateY(-1px);
-  }
-
-  .row-btn.pm-row-btn.selected {
-    background: #0d9488;
-    border-color: #115e59;
-    box-shadow: 0 3px 0 #134e4a;
-  }
-
-  .row-mini-bar {
-    width: 80%;
-    height: 5px;
-    background: rgba(0, 0, 0, 0.12);
-    border-radius: 999px;
-    overflow: hidden;
-  }
-
-  .row-btn.selected .row-mini-bar {
-    background: rgba(255, 255, 255, 0.28);
-  }
-
-  .row-mini-fill {
-    display: block;
-    height: 100%;
-    background: #10b981;
-  }
-
-  .row-btn.selected .row-mini-fill {
-    background: #fde047;
-  }
-
-  .type-toggle-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-
-  .type-btn {
-    min-height: 76px;
-    border-radius: 16px;
-    border: 2.5px solid #e2e8f0;
-    background: #f8fafc;
-    padding: 10px;
-    cursor: pointer;
-    font-family: inherit;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    text-align: center;
-    touch-action: manipulation;
-    transition: all 0.12s ease;
-  }
-
-  .type-btn.selected {
-    background: #eef2ff;
-    border-color: #4f46e5;
-    box-shadow: 0 3px 10px rgba(79, 70, 229, 0.14);
-  }
-
-  .type-emoji {
-    font-size: 1.35rem;
-  }
-
-  .type-title {
-    font-size: 0.9rem;
-    font-weight: 800;
-    color: #1e1b4b;
-  }
-
-  .type-example {
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #64748b;
-  }
-
-  .start-cta-btn {
-    width: 100%;
-    min-height: 64px;
-    border: none;
-    border-radius: 20px;
-    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #4338ca 100%);
-    color: #ffffff;
-    font-family: inherit;
-    font-size: 1.15rem;
-    font-weight: 900;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    box-shadow: 0 6px 0 #312e81, 0 10px 20px rgba(79, 70, 229, 0.3);
-    touch-action: manipulation;
-    transition: transform 0.08s ease, box-shadow 0.08s ease;
-  }
-
-  .start-cta-btn.cta-pm {
-    background: linear-gradient(135deg, #0d9488 0%, #14b8a6 50%, #0f766e 100%);
-    box-shadow: 0 6px 0 #115e59, 0 10px 20px rgba(13, 148, 136, 0.3);
-  }
-
-  .start-cta-btn:hover {
-    filter: brightness(1.05);
-  }
-
-  .start-cta-btn:active {
-    transform: translateY(4px);
-    box-shadow: 0 2px 0 #312e81;
-  }
-
-  .start-cta-btn.cta-pm:active {
-    box-shadow: 0 2px 0 #115e59;
-  }
-
-  .cta-rocket {
-    font-size: 1.4rem;
-  }
-
-  .preview-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
-  }
-
-  .preview-sub {
-    margin: -4px 0 0;
-    font-size: 0.83rem;
-    color: #64748b;
-  }
-
-  .open-matrix-btn {
-    background: #eef2ff;
-    color: #4338ca;
-    border: 2px solid #c7d2fe;
-    border-radius: 12px;
-    padding: 8px 12px;
-    font-family: inherit;
-    font-weight: 800;
-    font-size: 0.84rem;
-    cursor: pointer;
-  }
-
-  .open-matrix-btn:hover {
-    background: #e0e7ff;
-  }
-
-  .mini-status-pills {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-  }
-
-  .status-box {
-    border-radius: 14px;
-    padding: 10px 8px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-  }
-
-  .box-green {
-    background: #d1fae5;
-    color: #065f46;
-  }
-
-  .box-yellow {
-    background: #fef3c7;
-    color: #92400e;
-  }
-
-  .box-gray {
-    background: #f1f5f9;
-    color: #475569;
-  }
-
-  .box-num {
-    font-size: 1.35rem;
-    font-weight: 900;
-    line-height: 1.1;
-  }
-
-  .box-label {
-    font-size: 0.75rem;
-    font-weight: 700;
-    margin-top: 2px;
-  }
-</style>
+      <!-- Action Button -->
+      <button
+        type="button"
+        onclick={() => {
+          const ch = selectedChapter;
+          selectedChapter = null;
+          if (ch) onStartChapterSession(ch);
+        }}
+        class="w-full bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-extrabold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition btn-calm-primary cursor-pointer border-none"
+      >
+        <span>🚀</span>
+        <span>Diese Rechenwelt jetzt üben</span>
+      </button>
+    </div>
+  </div>
+{/if}
