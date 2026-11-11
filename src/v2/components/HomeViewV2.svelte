@@ -44,6 +44,7 @@
   // Lücken-Drawer Zustand
   let drawerRow = $state<number | null>(null);
   let highlightedPair = $state<'doubles' | null>(null);
+  let selectedChapter = $state<WorldChapter | null>(null);
 
   function getRowMasteredPercent(row: number): number {
     let mastered = 0;
@@ -237,45 +238,50 @@
       {#each chapters as ch (ch.id)}
         <button
           type="button"
-          class="card-press text-left p-2.5 rounded-xl border transition cursor-pointer {
+          class="card-press text-left p-2.5 rounded-xl border transition cursor-pointer flex flex-col justify-between {
             ch.stars < 3 && ch.stars > 0
               ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-800/60'
               : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60'
           }"
-          onclick={() => onStartChapterSession(ch)}
+          onclick={() => (selectedChapter = ch)}
         >
-          <div class="flex items-center justify-between text-xs">
-            <span>{ch.icon}</span>
-            <span
-              class="text-[9px] font-black px-1 rounded {
-                ch.percent >= 90
-                  ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50'
-                  : ch.percent > 40
-                  ? 'text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50'
-                  : 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50'
-              }"
-            >
-              {ch.percent}%
+          <div>
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-base">{ch.icon}</span>
+              <span
+                class="text-[9px] font-black px-1 rounded {
+                  ch.percent >= 90
+                    ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50'
+                    : ch.percent > 40
+                    ? 'text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50'
+                    : 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50'
+                }"
+              >
+                {ch.percent}%
+              </span>
+            </div>
+
+            <div class="font-extrabold text-[11px] text-slate-900 dark:text-slate-100 mt-1.5 leading-snug min-h-[30px] line-clamp-2">
+              {ch.title}
+            </div>
+            <div class="text-[9.5px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
+              {ch.subtitle}
+            </div>
+          </div>
+
+          <div class="text-[10px] text-amber-500 mt-2 flex items-center justify-between">
+            <span>
+              {#if ch.stars === 3}
+                ⭐⭐⭐
+              {:else if ch.stars === 2}
+                ⭐⭐<span class="text-slate-300 dark:text-slate-600">⚪</span>
+              {:else if ch.stars === 1}
+                ⭐<span class="text-slate-300 dark:text-slate-600">⚪⚪</span>
+              {:else}
+                <span class="text-slate-300 dark:text-slate-600">⚪⚪⚪</span>
+              {/if}
             </span>
-          </div>
-
-          <div class="font-extrabold text-[11px] text-slate-900 dark:text-slate-100 mt-1 truncate">
-            {ch.title}
-          </div>
-          <div class="text-[9px] text-slate-400 dark:text-slate-400 truncate">
-            {ch.subtitle}
-          </div>
-
-          <div class="text-[10px] text-amber-500 mt-1">
-            {#if ch.stars === 3}
-              ⭐⭐⭐
-            {:else if ch.stars === 2}
-              ⭐⭐<span class="text-slate-300 dark:text-slate-600">⚪</span>
-            {:else if ch.stars === 1}
-              ⭐<span class="text-slate-300 dark:text-slate-600">⚪⚪</span>
-            {:else}
-              <span class="text-slate-300 dark:text-slate-600">⚪⚪⚪</span>
-            {/if}
+            <span class="text-[9px] text-indigo-500 font-bold">Info ›</span>
           </div>
         </button>
       {/each}
@@ -463,6 +469,156 @@
           Ganze Reihe
         </button>
       </div>
+    </div>
+  </div>
+{/if}
+
+<!-- 7. KAPITEL-DRAWER (TRANSPARENTE STERNE-ÜBERSICHT) -->
+{#if selectedChapter !== null}
+  <div
+    class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-3"
+    onclick={(e) => {
+      if (e.target === e.currentTarget) selectedChapter = null;
+    }}
+    onkeydown={(e) => {
+      if (e.key === 'Escape') selectedChapter = null;
+    }}
+    role="dialog"
+    tabindex="-1"
+    aria-modal="true"
+    aria-label="Kapitel-Details"
+  >
+    <div
+      class="w-full max-w-md bg-white dark:bg-[#111827] border-2 border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-2xl animate-slide-up text-slate-800 dark:text-slate-100"
+    >
+      <!-- Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-3">
+        <div class="flex items-center gap-2.5">
+          <span class="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-2xl border border-indigo-200 dark:border-indigo-800">
+            {selectedChapter.icon}
+          </span>
+          <div>
+            <h4 class="text-sm font-extrabold text-slate-900 dark:text-white m-0">
+              {selectedChapter.title}
+            </h4>
+            <p class="text-[11px] text-slate-400 m-0">
+              {selectedChapter.subtitle} · {selectedChapter.percent}% gemeistert
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onclick={() => (selectedChapter = null)}
+          class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white text-xs font-bold border-none cursor-pointer flex items-center justify-center"
+        >
+          ✕
+        </button>
+      </div>
+
+      <!-- Sterne-Erklärungsliste -->
+      <div class="space-y-2 mb-4">
+        <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">
+          So erreichst du die 3 Sterne:
+        </span>
+
+        <!-- Stern 1 -->
+        <div
+          class="p-2.5 rounded-xl border flex items-start gap-2.5 {
+            selectedChapter.stars >= 1
+              ? 'bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60'
+              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
+          }"
+        >
+          <span class="text-base leading-none">⭐</span>
+          <div class="flex-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-extrabold {selectedChapter.stars >= 1 ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-800 dark:text-slate-200'}">
+                Stern 1: Basis-Aufgaben
+              </span>
+              {#if selectedChapter.stars >= 1}
+                <span class="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.2 rounded-md">
+                  Erreicht ✓
+                </span>
+              {:else}
+                <span class="text-[10px] font-bold text-slate-400">Noch offen</span>
+              {/if}
+            </div>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 m-0 mt-0.5">
+              {selectedChapter.star1Desc}
+            </p>
+          </div>
+        </div>
+
+        <!-- Stern 2 -->
+        <div
+          class="p-2.5 rounded-xl border flex items-start gap-2.5 {
+            selectedChapter.stars >= 2
+              ? 'bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60'
+              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
+          }"
+        >
+          <span class="text-base leading-none">⭐⭐</span>
+          <div class="flex-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-extrabold {selectedChapter.stars >= 2 ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-800 dark:text-slate-200'}">
+                Stern 2: Umkehraufgaben
+              </span>
+              {#if selectedChapter.stars >= 2}
+                <span class="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.2 rounded-md">
+                  Erreicht ✓
+                </span>
+              {:else}
+                <span class="text-[10px] font-bold text-slate-400">Noch offen</span>
+              {/if}
+            </div>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 m-0 mt-0.5">
+              {selectedChapter.star2Desc}
+            </p>
+          </div>
+        </div>
+
+        <!-- Stern 3 -->
+        <div
+          class="p-2.5 rounded-xl border flex items-start gap-2.5 {
+            selectedChapter.stars >= 3
+              ? 'bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60'
+              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
+          }"
+        >
+          <span class="text-base leading-none">⭐⭐⭐</span>
+          <div class="flex-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-extrabold {selectedChapter.stars >= 3 ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-800 dark:text-slate-200'}">
+                Stern 3: Lücken &amp; Meisterschaft
+              </span>
+              {#if selectedChapter.stars >= 3}
+                <span class="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.2 rounded-md">
+                  Erreicht ✓
+                </span>
+              {:else}
+                <span class="text-[10px] font-bold text-slate-400">Noch offen</span>
+              {/if}
+            </div>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 m-0 mt-0.5">
+              {selectedChapter.star3Desc}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Button -->
+      <button
+        type="button"
+        onclick={() => {
+          const ch = selectedChapter;
+          selectedChapter = null;
+          if (ch) onStartChapterSession(ch);
+        }}
+        class="w-full bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-extrabold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition btn-calm-primary cursor-pointer border-none"
+      >
+        <span>🚀</span>
+        <span>Diese Rechenwelt jetzt üben</span>
+      </button>
     </div>
   </div>
 {/if}

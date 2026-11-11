@@ -303,19 +303,33 @@
               🔥 Streak
             </button>
 
-            <button
-              type="button"
-              onclick={() => (confirmResetId = confirmResetId === prof.id ? null : prof.id)}
-              class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-500 cursor-pointer ml-auto"
-              title="Lernstand zurücksetzen"
-            >
-              ↺ Zurücksetzen
-            </button>
+            {#if lastBackup && lastBackup.profileId === prof.id}
+              <button
+                type="button"
+                onclick={() => {
+                  onRestoreBackup?.(prof.id);
+                  confirmResetId = null;
+                }}
+                class="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[11px] border-none cursor-pointer ml-auto flex items-center gap-1 transition shadow-xs"
+                title="Zuletzt zurückgesetzten Stand wiederherstellen"
+              >
+                <span>🔄</span> <span>Wiederherstellen</span>
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={() => (confirmResetId = confirmResetId === prof.id ? null : prof.id)}
+                class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-600 dark:text-slate-400 cursor-pointer ml-auto transition"
+                title="Lernstand zurücksetzen"
+              >
+                ↺ Zurücksetzen
+              </button>
+            {/if}
             {#if profiles.length > 1}
               <button
                 type="button"
                 onclick={() => (confirmDeleteId = confirmDeleteId === prof.id ? null : prof.id)}
-                class="px-2 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 text-[11px] font-bold text-rose-600 cursor-pointer"
+                class="px-2 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900 text-[11px] font-bold text-rose-600 dark:text-rose-400 cursor-pointer transition"
                 title="Profil löschen"
               >
                 🗑️

@@ -196,6 +196,14 @@
     isCorrect: boolean,
     isFast: boolean
   ) {
+    // Sobald neue Daten erfasst werden, erlischt die temporäre Wiederherstellungsmöglichkeit
+    if (lastBackup && lastBackup.profileId === activeProfile.id) {
+      lastBackup = null;
+      try {
+        window.localStorage.removeItem(BACKUP_STORAGE_KEY);
+      } catch {}
+    }
+
     updateActiveProfile((prof) => {
       const mode = prof.activeGameMode ?? 'mult';
       if (mode === 'plusminus') {

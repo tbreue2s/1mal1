@@ -496,6 +496,16 @@ export function buildSessionQueue(
 
   // 1. Typ-Filter anwenden (Nur Malnehmen bzw. Nur Plusrechnen vs. Alle Typen inkl. Umkehr & Lücken)
   let candidates = allCards.filter((card) => {
+    if (gameMode === 'plusminus' && plusMinusFocus === 'number_bonds_10') {
+      // Bei Verliebten Zahlen zur 10: Reine Addition "3+7=?" ist didaktisch witzlos (immer 10).
+      // Stufe 1 (mult_only): Ergänzen zur 10 ("3+?=10" und "?+7=10")
+      if (typeFilter === 'mult_only') {
+        return card.type === 'gap_add_a' || card.type === 'gap_add_b';
+      }
+      // Stufe 2/3 (all_types): Ergänzen + Subtraktion ("10-3=?") + Minus-Lücke ("10-?=3")
+      return card.type !== 'add';
+    }
+
     if (typeFilter === 'mult_only') {
       return gameMode === 'plusminus' ? card.type === 'add' : card.type === 'mult';
     }

@@ -657,12 +657,12 @@
   }
 
   :global(.dark) .matrix-header-card,
-  :global(.dark) .matrix-board-card,
+  :global(.dark) .grid-container,
   :global(.dark) .detail-card {
     background: #111827;
     border-color: #1e293b;
     color: #f8fafc;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
   }
 
   :global(.dark) .matrix-title-row h2,
@@ -671,8 +671,10 @@
   }
 
   :global(.dark) .subtitle,
+  :global(.dark) .legend-bar,
   :global(.dark) .legend-item span,
-  :global(.dark) .detail-type {
+  :global(.dark) .detail-type,
+  :global(.dark) .variant-meta {
     color: #94a3b8;
   }
 
@@ -694,49 +696,113 @@
     color: #ffffff;
   }
 
+  :global(.dark) .overall-progress {
+    background: #1e293b;
+  }
+
   :global(.dark) .header-cell {
     background: #1e293b;
     color: #94a3b8;
   }
 
-  :global(.dark) .header-cell.corner {
-    background: #0f172a;
+  :global(.dark) .corner-cell {
+    background: #4f46e5;
+    color: #ffffff;
   }
 
-  :global(.dark) .status-new {
+  :global(.dark) .corner-cell.corner-pm {
+    background: #0d9488;
+  }
+
+  :global(.dark) .matrix-cell.status-new {
     background: #1e293b;
-    color: #64748b;
+    color: #94a3b8;
     border-color: #334155;
   }
 
-  :global(.dark) .status-learning {
-    background: #78350f44;
+  :global(.dark) .matrix-cell.status-learning {
+    background: #78350f66;
     color: #fde68a;
     border-color: #b45309;
   }
 
-  :global(.dark) .status-mastered {
-    background: #064e3b55;
+  :global(.dark) .matrix-cell.status-mastered {
+    background: #064e3b77;
     color: #6ee7b7;
     border-color: #059669;
   }
 
-  :global(.dark) .variant-card {
-    background: #1e293b;
-    border-color: #334155;
+  :global(.dark) .matrix-cell.selected {
+    border-color: #818cf8;
+    box-shadow: 0 0 0 2px #6366f1, 0 0 10px rgba(99, 102, 241, 0.4);
   }
 
-  :global(.dark) .variant-prompt {
+  :global(.dark) .variant-item {
+    background: #1e293b;
+    border-color: #334155;
+    color: #cbd5e1;
+  }
+
+  :global(.dark) .variant-eq {
     color: #f8fafc;
   }
 
-  :global(.dark) .stat-chip {
-    background: #0f172a;
+  :global(.dark) .variant-item.v-mastered {
+    background: #064e3b55;
+    border-color: #059669;
+    color: #6ee7b7;
+  }
+
+  :global(.dark) .variant-item.v-learning {
+    background: #78350f55;
+    border-color: #b45309;
+    color: #fde68a;
+  }
+
+  :global(.dark) .variant-item.v-new {
+    background: #1e293b;
     border-color: #334155;
     color: #94a3b8;
   }
 
-  :global(.dark) .cell-details {
-    border-top-color: #1e293b;
+  :global(.dark) .status-pill.pill-new {
+    background: #1e293b;
+    color: #94a3b8;
+    border: 1px solid #334155;
+  }
+
+  :global(.dark) .status-pill.pill-learning {
+    background: #78350f77;
+    color: #fde68a;
+    border: 1px solid #b45309;
+  }
+
+  :global(.dark) .status-pill.pill-mastered {
+    background: #064e3b77;
+    color: #6ee7b7;
+    border: 1px solid #059669;
+  }
+
+  :global(.dark) .reset-trigger-btn {
+    background: transparent;
+    border-color: #334155;
+    color: #94a3b8;
+  }
+
+  :global(.dark) .reset-trigger-btn:hover {
+    border-color: #f43f5e;
+    color: #f43f5e;
+  }
+
+  :global(.dark) .reset-confirm-box {
+    background: #450a0a55;
+    border-color: #991b1b;
+    color: #fecaca;
+  }
+
+  :global(.dark) .cancel-btn {
+    background: #1e293b;
+    border-color: #334155;
+    color: #f8fafc;
   }
 </style>
