@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
     Roboto, Helvetica, Arial, sans-serif;
@@ -103,3 +105,4 @@ body {
 .dark ::-webkit-scrollbar-thumb {
   background: #334155;
 }
+

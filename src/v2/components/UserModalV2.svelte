@@ -1,7 +1,7 @@
 <script lang="ts">
   import { AVAILABLE_AVATARS } from '../../lib/storage';
   import type { GameMode, TypeFilter, UserProfile } from '../../lib/types';
-  import { themeManager, type ThemeMode } from '../lib/theme';
+  import { themeManager, type ThemeMode } from '../lib/theme.svelte';
 
   interface Props {
     profiles: UserProfile[];

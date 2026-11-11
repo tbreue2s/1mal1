@@ -16,7 +16,7 @@
   import PracticeViewV2 from './components/PracticeViewV2.svelte';
   import UserModalV2 from './components/UserModalV2.svelte';
   import type { WorldChapter } from './lib/chapters';
-  import { themeManager } from './lib/theme';
+  import { themeManager } from './lib/theme.svelte';
 
   type Screen = 'home' | 'practice' | 'matrix' | 'users';
 
