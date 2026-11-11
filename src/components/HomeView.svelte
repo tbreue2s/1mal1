@@ -14,7 +14,6 @@
     gameMode: GameMode;
     cards: TaskCard[];
     stats: UserStats;
-    onSwitchGameMode: (mode: GameMode) => void;
     onUpdateSettings: (partial: Partial<UserStats>) => void;
     onStartSession: () => void;
     onOpenMatrix: () => void;
@@ -24,7 +23,6 @@
     gameMode,
     cards,
     stats,
-    onSwitchGameMode,
     onUpdateSettings,
     onStartSession,
     onOpenMatrix,
@@ -113,39 +111,6 @@
 </script>
 
 <div class="home-view">
-  <!-- Modus-Umschalter: 1×1 Meister vs. Zahlenheld -->
-  <div class="game-mode-switcher" role="tablist" aria-label="Rechenwelt wählen">
-    <button
-      type="button"
-      role="tab"
-      aria-selected={gameMode === 'mult'}
-      class="gm-btn gm-mult"
-      class:active={gameMode === 'mult'}
-      onclick={() => onSwitchGameMode('mult')}
-    >
-      <span class="gm-icon">✖️</span>
-      <span class="gm-text">
-        <span class="gm-title">1×1 Meister</span>
-        <span class="gm-sub">Mal &amp; Geteilt</span>
-      </span>
-    </button>
-
-    <button
-      type="button"
-      role="tab"
-      aria-selected={gameMode === 'plusminus'}
-      class="gm-btn gm-pm"
-      class:active={gameMode === 'plusminus'}
-      onclick={() => onSwitchGameMode('plusminus')}
-    >
-      <span class="gm-icon">➕</span>
-      <span class="gm-text">
-        <span class="gm-title">Zahlenheld</span>
-        <span class="gm-sub">Plus &amp; Minus bis 20</span>
-      </span>
-    </button>
-  </div>
-
   <!-- Lern-Modus Auswahl -->
   <section class="card-section" aria-label="Lern-Modus wählen">
     <h2 class="section-title">1. Wähle deinen Lern-Modus</h2>
@@ -467,81 +432,6 @@
     flex-direction: column;
     gap: 14px;
     padding-bottom: 20px;
-  }
-
-  .game-mode-switcher {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    background: #ffffff;
-    padding: 8px;
-    border-radius: 20px;
-    border: 2px solid #e0e7ff;
-    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.06);
-  }
-
-  .gm-btn {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 14px;
-    border: 2px solid transparent;
-    background: #f8fafc;
-    color: #475569;
-    font-family: inherit;
-    text-align: left;
-    cursor: pointer;
-    touch-action: manipulation;
-    transition: all 0.15s ease;
-  }
-
-  .gm-btn:hover {
-    background: #f1f5f9;
-  }
-
-  .gm-btn.gm-mult.active {
-    background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
-    color: #ffffff;
-    border-color: #312e81;
-    box-shadow: 0 3px 10px rgba(79, 70, 229, 0.28);
-  }
-
-  .gm-btn.gm-pm.active {
-    background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
-    color: #ffffff;
-    border-color: #115e59;
-    box-shadow: 0 3px 10px rgba(13, 148, 136, 0.28);
-  }
-
-  .gm-icon {
-    font-size: 1.5rem;
-    line-height: 1;
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.85);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .gm-text {
-    display: flex;
-    flex-direction: column;
-    line-height: 1.15;
-  }
-
-  .gm-title {
-    font-size: 0.96rem;
-    font-weight: 900;
-  }
-
-  .gm-sub {
-    font-size: 0.73rem;
-    font-weight: 700;
-    opacity: 0.85;
   }
 
   .card-section {

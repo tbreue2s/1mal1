@@ -77,6 +77,13 @@
     }));
   }
 
+  function handleSetProfileGameMode(id: string, mode: GameMode) {
+    const next = profiles.map((p) =>
+      p.id === id ? { ...p, activeGameMode: mode } : p
+    );
+    persistAll(next, activeProfileId);
+  }
+
   function updateSettings(partial: Partial<UserStats>) {
     updateActiveProfile((prof) => {
       const mode = prof.activeGameMode ?? 'mult';
@@ -385,8 +392,9 @@
             <div class="dropdown-section-label">Spieler wechseln</div>
             {#each profiles as prof (prof.id)}
               {@const isCurrent = prof.id === activeProfile.id}
+              {@const profMode = prof.activeGameMode ?? 'mult'}
               {@const profStats =
-                gameMode === 'plusminus' ? prof.plusMinusStats : prof.stats}
+                profMode === 'plusminus' ? prof.plusMinusStats : prof.stats}
               <button
                 type="button"
                 role="menuitem"
@@ -398,7 +406,7 @@
                 <span class="dd-info">
                   <span class="dd-name">{prof.name}</span>
                   <span class="dd-meta">
-                    🔥 {profStats.streakDays} · ⭐ {profStats.stars}
+                    {profMode === 'plusminus' ? '➕' : '✖️'} 🔥 {profStats.streakDays} · ⭐ {profStats.stars}
                   </span>
                 </span>
                 {#if isCurrent}
@@ -478,7 +486,6 @@
         {gameMode}
         {cards}
         {stats}
-        onSwitchGameMode={handleSwitchGameMode}
         onUpdateSettings={updateSettings}
         onStartSession={startSession}
         onOpenMatrix={() => (currentScreen = 'matrix')}
@@ -522,6 +529,7 @@
         onDeleteProfile={handleDeleteProfile}
         onResetProfile={handleResetProfile}
         onSetManualStreak={handleSetManualStreak}
+        onSetGameMode={handleSetProfileGameMode}
         onSelectLogo={handleSelectLogo}
         onClose={() => (currentScreen = 'home')}
       />

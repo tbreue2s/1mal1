@@ -17,6 +17,7 @@
     onDeleteProfile: (id: string) => void;
     onResetProfile: (id: string, targetMode: GameMode | 'both') => void;
     onSetManualStreak: (id: string, streakDays: number, targetMode: GameMode) => void;
+    onSetGameMode: (id: string, mode: GameMode) => void;
     onSelectLogo: (variant: LogoVariantId) => void;
     onClose: () => void;
   }
@@ -31,6 +32,7 @@
     onDeleteProfile,
     onResetProfile,
     onSetManualStreak,
+    onSetGameMode,
     onSelectLogo,
     onClose,
   }: Props = $props();
@@ -124,6 +126,15 @@
     manualStreakInput = String(targetStats.streakDays);
   }
 
+  function handleModeChange(profile: UserProfile, nextMode: GameMode) {
+    onSetGameMode(profile.id, nextMode);
+    if (editingStreakProfileId === profile.id) {
+      editingStreakMode = nextMode;
+      const targetStats = nextMode === 'plusminus' ? profile.plusMinusStats : profile.stats;
+      manualStreakInput = String(targetStats.streakDays);
+    }
+  }
+
   function saveStreak(profileId: string) {
     const parsed = Number.parseInt(manualStreakInput, 10);
     const safeVal = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
@@ -193,6 +204,22 @@
               >
                 ✏️ Name
               </button>
+
+              <div class="mode-select-wrap">
+                <select
+                  id="mode-select-{prof.id}"
+                  class="small-action-select mode-select"
+                  class:is-pm={prof.activeGameMode === 'plusminus'}
+                  value={prof.activeGameMode ?? 'mult'}
+                  onchange={(e) =>
+                    handleModeChange(prof, e.currentTarget.value as GameMode)}
+                  title="Rechenmodus für {prof.name} festlegen"
+                  aria-label="Rechenmodus für {prof.name}"
+                >
+                  <option value="mult">✖️ 1×1 Meister</option>
+                  <option value="plusminus">➕ Zahlenheld</option>
+                </select>
+              </div>
 
               <button
                 type="button"
@@ -673,6 +700,46 @@
     font-weight: 800;
     cursor: pointer;
     font-family: inherit;
+  }
+
+  .mode-select-wrap {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .small-action-select {
+    border: 1.5px solid #c7d2fe;
+    background-color: #eef2ff;
+    color: #3730a3;
+    border-radius: 10px;
+    padding: 6px 24px 6px 9px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    cursor: pointer;
+    font-family: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+    line-height: 1.2;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%233730a3' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 7px center;
+    transition: all 0.15s ease;
+  }
+
+  .small-action-select:hover {
+    filter: brightness(0.97);
+  }
+
+  .small-action-select:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+  }
+
+  .small-action-select.is-pm {
+    border-color: #99f6e4;
+    background-color: #f0fdfa;
+    color: #0f766e;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%230f766e' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   }
 
   .edit-name-btn {
