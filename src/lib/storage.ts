@@ -448,7 +448,7 @@ export function exportUserProfile(profile: UserProfile): string {
     format: '1mal1-profile-backup',
     version: 1,
     exportedAt: new Date().toISOString(),
-    appName: '1×1 Meister & Zahlen-Held',
+    appName: 'ZahlenBlitz',
     profile: {
       id: profile.id,
       name: profile.name,
@@ -481,7 +481,7 @@ export function downloadProfileBackup(profile: UserProfile): void {
       .replace(/_+/g, '_') || 'spieler';
   const dateStr = new Date().toISOString().slice(0, 10);
   a.href = url;
-  a.download = `1mal1_profil_${safeName}_${dateStr}.json`;
+  a.download = `zahlenblitz_profil_${safeName}_${dateStr}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

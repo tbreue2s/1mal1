@@ -363,7 +363,7 @@
     </button>
 
     <div class="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
-      <span>App 2.0</span>
+      <span>ZahlenBlitz 2.0</span>
       {#if isDevelop}
         <span class="px-1.5 py-0.2 rounded-full bg-violet-100 dark:bg-violet-950/80 text-violet-700 dark:text-violet-300 text-[9px] font-black uppercase">
           develop
