@@ -1,9 +1,18 @@
 import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { VitePWA } from 'vite-plugin-pwa'
+import { resolve } from 'path'
 
 export default defineConfig({
   base: './',
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(import.meta.dirname, 'index.html'),
+        v2: resolve(import.meta.dirname, 'v2/index.html')
+      }
+    }
+  },
   plugins: [
     svelte(),
     VitePWA({
