@@ -189,13 +189,13 @@
 
     <!-- Große Aufgabenkarte -->
     <div
-      class="bg-white dark:bg-[#111827] rounded-3xl p-6 border-2 shadow-sm text-center relative transition-all duration-200"
-      class:border-slate-200={feedbackState === 'idle'}
-      class:dark:border-slate-800={feedbackState === 'idle'}
-      class:border-emerald-500={feedbackState === 'correct'}
-      class:bg-emerald-50_20={feedbackState === 'correct'}
-      class:border-rose-500={feedbackState === 'wrong'}
-      class:bg-rose-50_20={feedbackState === 'wrong'}
+      class="bg-white dark:bg-[#111827] rounded-3xl p-6 border-2 shadow-sm text-center relative transition-all duration-200 {
+        feedbackState === 'correct'
+          ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20'
+          : feedbackState === 'wrong'
+          ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/20'
+          : 'border-slate-200 dark:border-slate-800'
+      }"
     >
       <div class="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-3">
         {equationParts.typeBadge}
@@ -208,20 +208,13 @@
         {/if}
 
         <div
-          class="min-w-16 px-3 py-1 rounded-2xl border-2 text-center transition-all"
-          class:border-indigo-500={feedbackState === 'idle'}
-          class:bg-indigo-50_40={feedbackState === 'idle'}
-          class:dark:bg-indigo-950_40={feedbackState === 'idle'}
-          class:border-emerald-500={feedbackState === 'correct'}
-          class:bg-emerald-100={feedbackState === 'correct'}
-          class:dark:bg-emerald-950_80={feedbackState === 'correct'}
-          class:text-emerald-700={feedbackState === 'correct'}
-          class:dark:text-emerald-300={feedbackState === 'correct'}
-          class:border-rose-500={feedbackState === 'wrong'}
-          class:bg-rose-100={feedbackState === 'wrong'}
-          class:dark:bg-rose-950_80={feedbackState === 'wrong'}
-          class:text-rose-700={feedbackState === 'wrong'}
-          class:dark:text-rose-300={feedbackState === 'wrong'}
+          class="min-w-16 px-3 py-1 rounded-2xl border-2 text-center transition-all {
+            feedbackState === 'correct'
+              ? 'border-emerald-500 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
+              : feedbackState === 'wrong'
+              ? 'border-rose-500 bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300'
+              : 'border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/40 text-slate-900 dark:text-white'
+          }"
         >
           {inputDigits || '?'}
         </div>

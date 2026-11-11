@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import LegalView from '../components/LegalView.svelte';
   import MatrixView from '../components/MatrixView.svelte';
   import { playKeyTap } from '../lib/audio';
   import {
@@ -14,16 +15,30 @@
   import type { GameMode, TaskCard, TypeFilter, UserProfile, UserStats } from '../lib/types';
   import HomeViewV2 from './components/HomeViewV2.svelte';
   import PracticeViewV2 from './components/PracticeViewV2.svelte';
-  import UserModalV2 from './components/UserModalV2.svelte';
+  import UserModalV2, { type ProfileBackup } from './components/UserModalV2.svelte';
   import type { WorldChapter } from './lib/chapters';
   import { themeManager } from './lib/theme.svelte';
 
-  type Screen = 'home' | 'practice' | 'matrix' | 'users';
+  type Screen = 'home' | 'practice' | 'matrix' | 'users' | 'legal';
+
+  const BACKUP_STORAGE_KEY = 'v2_last_profile_backup';
+
+  function loadInitialBackup(): ProfileBackup | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = window.localStorage.getItem(BACKUP_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
 
   let currentScreen = $state<Screen>('home');
   let loaded = loadProfilesAndActiveId();
   let profiles = $state<UserProfile[]>(loaded.profiles);
   let activeProfileId = $state<string>(loaded.activeProfileId);
+
+  let lastBackup = $state<ProfileBackup | null>(loadInitialBackup());
 
   let activeSessionQueue = $state<TaskCard[]>([]);
 
@@ -248,10 +263,35 @@
   }
 
   function handleResetProfile(id: string, targetMode: GameMode | 'both') {
+    const profToReset = profiles.find((p) => p.id === id);
+    if (profToReset) {
+      const backup: ProfileBackup = {
+        profileId: id,
+        profile: JSON.parse(JSON.stringify(profToReset)),
+        modeReset: targetMode,
+        timestamp: Date.now(),
+      };
+      lastBackup = backup;
+      try {
+        window.localStorage.setItem(BACKUP_STORAGE_KEY, JSON.stringify(backup));
+      } catch {}
+    }
+
     const next = profiles.map((p) =>
       p.id === id ? resetProfileData(p, targetMode) : p
     );
     persistAll(next, activeProfileId);
+  }
+
+  function handleRestoreBackup(id: string) {
+    if (!lastBackup || lastBackup.profileId !== id) return;
+    const restoredProf = lastBackup.profile;
+    const next = profiles.map((p) => (p.id === id ? restoredProf : p));
+    persistAll(next, activeProfileId);
+    lastBackup = null;
+    try {
+      window.localStorage.removeItem(BACKUP_STORAGE_KEY);
+    } catch {}
   }
 
   function handleSetManualStreak(
@@ -291,6 +331,7 @@
       onStartChapterSession={startChapterSession}
       onOpenMatrix={() => (currentScreen = 'matrix')}
       onOpenUsers={() => (currentScreen = 'users')}
+      onOpenLegal={() => (currentScreen = 'legal')}
     />
   {:else if currentScreen === 'practice'}
     <PracticeViewV2
@@ -311,6 +352,10 @@
         onResetProgress={() => handleResetProfile(activeProfile.id, gameMode)}
       />
     </div>
+  {:else if currentScreen === 'legal'}
+    <div class="w-full max-w-xl mx-auto">
+      <LegalView onBack={() => (currentScreen = 'home')} />
+    </div>
   {/if}
 
   {#if currentScreen === 'users'}
@@ -319,11 +364,13 @@
       activeProfileId={activeProfile.id}
       {gameMode}
       typeFilter={stats.typeFilter}
+      {lastBackup}
       onSelectProfile={handleSelectProfile}
       onCreateProfile={handleCreateProfile}
       onUpdateProfile={handleUpdateProfile}
       onDeleteProfile={handleDeleteProfile}
       onResetProfile={handleResetProfile}
+      onRestoreBackup={handleRestoreBackup}
       onSetManualStreak={handleSetManualStreak}
       onSetGameMode={handleSetProfileGameMode}
       onSetTypeFilter={handleSetTypeFilter}

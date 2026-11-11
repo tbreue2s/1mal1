@@ -1,5 +1,5 @@
 import type { GameMode, PlusMinusFocus, TaskCard } from '../../lib/types';
-import { getCardMastery } from '../../lib/sm2';
+import { getCardMastery, getMatrixCellStatus } from '../../lib/sm2';
 
 export interface WorldChapter {
   id: string;
@@ -120,14 +120,46 @@ function computeChapterStats(
   rows?: number[],
   pmFocus?: PlusMinusFocus
 ): WorldChapter {
+  let totalFacts = 0;
+  let masteredFacts = 0;
+
+  if (rows && rows.length > 0) {
+    totalFacts = rows.length * 10;
+    for (const r of rows) {
+      for (let a = 1; a <= 10; a++) {
+        const cellCards = chapterCards.filter(
+          (c) => c.fact[0] === a && c.fact[1] === r
+        );
+        if (getMatrixCellStatus(cellCards) === 'mastered') {
+          masteredFacts++;
+        }
+      }
+    }
+  } else {
+    const factKeys = Array.from(
+      new Set(chapterCards.map((c) => `${c.fact[0]}_${c.fact[1]}`))
+    );
+    totalFacts = factKeys.length || 1;
+    for (const key of factKeys) {
+      const [a, b] = key.split('_').map(Number);
+      const cellCards = chapterCards.filter(
+        (c) => c.fact[0] === a && c.fact[1] === b
+      );
+      if (getMatrixCellStatus(cellCards) === 'mastered') {
+        masteredFacts++;
+      }
+    }
+  }
+
+  const percent = Math.min(
+    100,
+    Math.round((masteredFacts / (totalFacts || 1)) * 100)
+  );
+
   const totalCards = chapterCards.length || 1;
   const masteredCards = chapterCards.filter(
     (c) => getCardMastery(c) === 'mastered'
   ).length;
-  const percent = Math.min(
-    100,
-    Math.round((masteredCards / totalCards) * 100)
-  );
 
   // 3-Sterne-Berechnung nach Aufgabentypen
   const basicCards = chapterCards.filter(

@@ -655,4 +655,88 @@
     font-weight: 700;
     cursor: pointer;
   }
+
+  :global(.dark) .matrix-header-card,
+  :global(.dark) .matrix-board-card,
+  :global(.dark) .detail-card {
+    background: #111827;
+    border-color: #1e293b;
+    color: #f8fafc;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  }
+
+  :global(.dark) .matrix-title-row h2,
+  :global(.dark) .big-eq {
+    color: #f8fafc;
+  }
+
+  :global(.dark) .subtitle,
+  :global(.dark) .legend-item span,
+  :global(.dark) .detail-type {
+    color: #94a3b8;
+  }
+
+  :global(.dark) .back-btn {
+    background: #1e293b;
+    border-color: #334155;
+    color: #f8fafc;
+  }
+
+  :global(.dark) .mini-tab {
+    background: #1e293b;
+    border-color: #334155;
+    color: #94a3b8;
+  }
+
+  :global(.dark) .mini-tab.active {
+    background: #4f46e5;
+    border-color: #6366f1;
+    color: #ffffff;
+  }
+
+  :global(.dark) .header-cell {
+    background: #1e293b;
+    color: #94a3b8;
+  }
+
+  :global(.dark) .header-cell.corner {
+    background: #0f172a;
+  }
+
+  :global(.dark) .status-new {
+    background: #1e293b;
+    color: #64748b;
+    border-color: #334155;
+  }
+
+  :global(.dark) .status-learning {
+    background: #78350f44;
+    color: #fde68a;
+    border-color: #b45309;
+  }
+
+  :global(.dark) .status-mastered {
+    background: #064e3b55;
+    color: #6ee7b7;
+    border-color: #059669;
+  }
+
+  :global(.dark) .variant-card {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  :global(.dark) .variant-prompt {
+    color: #f8fafc;
+  }
+
+  :global(.dark) .stat-chip {
+    background: #0f172a;
+    border-color: #334155;
+    color: #94a3b8;
+  }
+
+  :global(.dark) .cell-details {
+    border-top-color: #1e293b;
+  }
 </style>

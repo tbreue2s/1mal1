@@ -253,5 +253,44 @@
   .back-btn:hover {
     background: #e0e7ff;
   }
+
+  :global(.dark) .legal-header-card,
+  :global(.dark) .legal-card {
+    background: #111827;
+    border-color: #1e293b;
+    color: #f8fafc;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  }
+
+  :global(.dark) .legal-top-row h2,
+  :global(.dark) .legal-card h3,
+  :global(.dark) .legal-card h4 {
+    color: #f8fafc;
+  }
+
+  :global(.dark) .legal-card p,
+  :global(.dark) .legal-card li {
+    color: #cbd5e1;
+  }
+
+  :global(.dark) .address-block {
+    background: #1e293b;
+    border-color: #334155;
+    color: #f8fafc;
+  }
+
+  :global(.dark) .address-block a {
+    color: #818cf8;
+  }
+
+  :global(.dark) .back-btn {
+    background: #1e293b;
+    color: #f8fafc;
+    border-color: #334155;
+  }
+
+  :global(.dark) .back-btn:hover {
+    background: #334155;
+  }
 </style>
 

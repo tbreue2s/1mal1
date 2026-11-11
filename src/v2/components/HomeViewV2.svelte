@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { getMatrixCellStatus } from '../../lib/sm2';
   import { countDueCards } from '../../lib/storage';
   import type { GameMode, TaskCard, UserProfile, UserStats } from '../../lib/types';
   import { getWorldChapters, type WorldChapter } from '../lib/chapters';
@@ -16,6 +17,7 @@
     onStartChapterSession: (chapter: WorldChapter) => void;
     onOpenMatrix: () => void;
     onOpenUsers: () => void;
+    onOpenLegal: () => void;
   }
 
   let {
@@ -31,6 +33,7 @@
     onStartChapterSession,
     onOpenMatrix,
     onOpenUsers,
+    onOpenLegal,
   }: Props = $props();
 
   const allRows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -43,14 +46,16 @@
   let highlightedPair = $state<'doubles' | null>(null);
 
   function getRowMasteredPercent(row: number): number {
-    const rowCards = cards.filter((c) => c.row === row);
-    if (rowCards.length === 0) return 0;
-    const mastered = rowCards.filter(
-      (c) =>
-        (c.repetitions >= 2 && (c.lastQuality ?? 0) >= 3) ||
-        (c.repetitions >= 1 && c.lastQuality === 4)
-    ).length;
-    return Math.round((mastered / rowCards.length) * 100);
+    let mastered = 0;
+    for (let a = 1; a <= 10; a++) {
+      const cellCards = cards.filter(
+        (c) => c.fact[0] === a && c.fact[1] === row
+      );
+      if (getMatrixCellStatus(cellCards) === 'mastered') {
+        mastered++;
+      }
+    }
+    return mastered * 10;
   }
 
   // Findet die 3 schwächsten Karten einer Reihe für den Drawer
@@ -94,7 +99,7 @@
   }
 </script>
 
-<div class="w-full max-w-md mx-auto space-y-3.5 pb-8">
+<div class="w-full max-w-lg mx-auto space-y-3.5 pb-8">
   <!-- 1. HEADER MIT STREAK, STERNE, QUICK SOUND & PROFIL -->
   <header class="flex items-center justify-between bg-white dark:bg-[#111827] rounded-2xl p-3 border border-slate-200/80 dark:border-slate-800 shadow-xs">
     <button
@@ -232,24 +237,23 @@
       {#each chapters as ch (ch.id)}
         <button
           type="button"
-          class="card-press text-left p-2.5 rounded-xl border transition cursor-pointer"
-          class:bg-indigo-50_50={ch.stars < 3 && ch.stars > 0}
-          class:dark:bg-indigo-950_30={ch.stars < 3 && ch.stars > 0}
-          class:border-indigo-400_80={ch.stars < 3 && ch.stars > 0}
-          class:bg-slate-50={ch.stars === 3 || ch.stars === 0}
-          class:dark:bg-slate-800_40={ch.stars === 3 || ch.stars === 0}
-          class:border-slate-200={ch.stars === 3 || ch.stars === 0}
-          class:dark:border-slate-700_60={ch.stars === 3 || ch.stars === 0}
+          class="card-press text-left p-2.5 rounded-xl border transition cursor-pointer {
+            ch.stars < 3 && ch.stars > 0
+              ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-800/60'
+              : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60'
+          }"
           onclick={() => onStartChapterSession(ch)}
         >
           <div class="flex items-center justify-between text-xs">
             <span>{ch.icon}</span>
             <span
-              class="text-[9px] font-black px-1 rounded"
-              class:text-emerald-600={ch.percent >= 90}
-              class:dark:text-emerald-400={ch.percent >= 90}
-              class:text-indigo-600={ch.percent < 90 && ch.percent > 40}
-              class:text-amber-600={ch.percent <= 40}
+              class="text-[9px] font-black px-1 rounded {
+                ch.percent >= 90
+                  ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50'
+                  : ch.percent > 40
+                  ? 'text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50'
+                  : 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50'
+              }"
             >
               {ch.percent}%
             </span>
@@ -258,7 +262,7 @@
           <div class="font-extrabold text-[11px] text-slate-900 dark:text-slate-100 mt-1 truncate">
             {ch.title}
           </div>
-          <div class="text-[9px] text-slate-400 truncate">
+          <div class="text-[9px] text-slate-400 dark:text-slate-400 truncate">
             {ch.subtitle}
           </div>
 
@@ -316,35 +320,32 @@
         {@const isWeak = pct > 0 && pct < 60}
         <button
           type="button"
-          class="card-press p-2 rounded-xl text-center border transition cursor-pointer"
-          class:bg-rose-50_60={isWeak}
-          class:dark:bg-rose-950_20={isWeak}
-          class:border-rose-300={isWeak}
-          class:dark:border-rose-800_60={isWeak}
-          class:ring-1={isWeak || isDouble}
-          class:ring-rose-400_40={isWeak}
-          class:ring-indigo-400={isDouble}
-          class:bg-slate-50={!isWeak}
-          class:dark:bg-slate-800_40={!isWeak}
-          class:border-slate-200={!isWeak}
-          class:dark:border-slate-800={!isWeak}
+          class="card-press p-2 rounded-xl text-center border transition cursor-pointer {
+            isWeak
+              ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800/60 ring-1 ring-rose-400/30'
+              : isDouble
+              ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-400'
+              : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60'
+          }"
           onclick={() => (drawerRow = r)}
         >
           <span
-            class="text-xs font-bold"
-            class:text-rose-700={isWeak}
-            class:dark:text-rose-300={isWeak}
-            class:text-slate-800={!isWeak}
-            class:dark:text-slate-200={!isWeak}
+            class="text-xs font-bold {
+              isWeak
+                ? 'text-rose-700 dark:text-rose-300'
+                : 'text-slate-800 dark:text-slate-200'
+            }"
           >
             {gameMode === 'mult' ? `${r}er` : `+${r}`}
           </span>
           <span
-            class="block text-[9px] font-semibold"
-            class:text-rose-600={isWeak}
-            class:dark:text-rose-400={isWeak}
-            class:text-emerald-500={pct >= 90}
-            class:text-slate-400={pct < 90 && !isWeak}
+            class="block text-[9px] font-semibold {
+              isWeak
+                ? 'text-rose-600 dark:text-rose-400'
+                : pct >= 90
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-slate-400 dark:text-slate-400'
+            }"
           >
             {pct}% {isWeak ? '⚠️' : ''}
           </span>
@@ -354,15 +355,24 @@
   </section>
 
   <!-- 5. FOOTER LINKS -->
-  <footer class="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 pt-1 px-2 font-medium">
+  <footer class="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 pt-1 px-1 font-medium gap-2">
     <button
       type="button"
       onclick={onOpenUsers}
       class="hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-xs"
     >
-      <span>⚙️</span> <span>Optionen &amp; Spieler</span>
+      <span>⚙️</span> <span>Optionen &amp; Nutzer</span>
     </button>
-    <span class="text-[10px]">App v2.0 (Dezent &amp; Ruhig)</span>
+
+    <button
+      type="button"
+      onclick={onOpenLegal}
+      class="hover:text-slate-700 dark:hover:text-slate-300 bg-transparent border-none p-0 cursor-pointer text-[11px]"
+    >
+      Impressum &amp; Datenschutz
+    </button>
+
+    <span class="text-[11px] text-slate-400 dark:text-slate-500">App v2.0</span>
   </footer>
 </div>
 
