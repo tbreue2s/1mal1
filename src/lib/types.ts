@@ -46,7 +46,7 @@ export type PlusMinusFocus =
   | 'doubles'
   | 'rows';
 
-export type MasteryStatus = 'new' | 'learning' | 'mastered';
+export type MasteryStatus = 'new' | 'wrong' | 'learning' | 'mastered';
 
 export type LogoVariantId = 'penguin' | 'otter' | 'owl' | 'rocket' | 'fox';
 

@@ -4,6 +4,7 @@ import type { GameMode, PlusMinusFocus, TaskCard } from '../../lib/types';
 
 export interface StarProgress {
   current: number;
+  consolidated: number;
   total: number;
   percent: number;
   isUnlocked: boolean;
@@ -180,7 +181,7 @@ function computeChapterStats(
   star3Desc = ''
 ): WorldChapter {
   let totalFacts = 0;
-  let masteredFacts = 0;
+  let factPoints = 0;
 
   if (rows && rows.length > 0) {
     totalFacts = rows.length * 10;
@@ -189,8 +190,13 @@ function computeChapterStats(
         const cellCards = chapterCards.filter(
           (c) => c.fact[0] === a && c.fact[1] === r
         );
-        if (getMatrixCellStatus(cellCards) === 'mastered') {
-          masteredFacts++;
+        const st = getMatrixCellStatus(cellCards);
+        if (st === 'mastered') {
+          factPoints += 1;
+        } else if (st === 'learning') {
+          factPoints += 0.5;
+        } else if (st === 'wrong') {
+          factPoints += 0.2;
         }
       }
     }
@@ -204,15 +210,20 @@ function computeChapterStats(
       const cellCards = chapterCards.filter(
         (c) => c.fact[0] === a && c.fact[1] === b
       );
-      if (getMatrixCellStatus(cellCards) === 'mastered') {
-        masteredFacts++;
+      const st = getMatrixCellStatus(cellCards);
+      if (st === 'mastered') {
+        factPoints += 1;
+      } else if (st === 'learning') {
+        factPoints += 0.5;
+      } else if (st === 'wrong') {
+        factPoints += 0.2;
       }
     }
   }
 
   const percent = Math.min(
     100,
-    Math.round((masteredFacts / (totalFacts || 1)) * 100)
+    Math.round((factPoints / (totalFacts || 1)) * 100)
   );
 
   const totalCards = chapterCards.length || 1;
@@ -223,8 +234,11 @@ function computeChapterStats(
   const countMastered = (list: TaskCard[]) =>
     list.filter((c) => getCardMastery(c) === 'mastered').length;
 
-  // Konsolidierungsprüfung: Eine Karte gilt erst als gefestigt für einen Stern,
-  // wenn sie mindestens 2 erfolgreiche Wiederholungen mit guter/schneller Qualität aufweist.
+  // Gelernt: Karte wurde mindestens 1x richtig gelöst und hat keinen akuten Fehler
+  const countLearned = (list: TaskCard[]) =>
+    list.filter((c) => c.repetitions >= 1 && (c.lastQuality ?? 0) >= 2).length;
+
+  // Fest im Langzeitgedächtnis: Mindestens 2 getrennte Bestätigungen mit gutem Tempo
   const countConsolidated = (list: TaskCard[]) =>
     list.filter((c) => c.repetitions >= 2 && (c.lastQuality ?? 0) >= 3).length;
 
@@ -251,12 +265,14 @@ function computeChapterStats(
   }
 
   const s1Total = s1Cards.length || 1;
-  const s1Current = countConsolidated(s1Cards);
-  const s1Percent = Math.min(100, Math.round((s1Current / s1Total) * 100));
-  const s1Achieved = s1Percent >= 80 && s1Current >= 1;
+  const s1Learned = countLearned(s1Cards);
+  const s1Consolidated = countConsolidated(s1Cards);
+  const s1Percent = Math.min(100, Math.round((s1Learned / s1Total) * 100));
+  const s1Achieved = s1Percent >= 80 && s1Learned >= 1;
 
   const star1Progress: StarProgress = {
-    current: s1Current,
+    current: s1Learned,
+    consolidated: s1Consolidated,
     total: s1Total,
     percent: s1Percent,
     isUnlocked: true,
@@ -264,13 +280,15 @@ function computeChapterStats(
   };
 
   const s2Total = s2Cards.length || 1;
-  const s2Current = countConsolidated(s2Cards);
-  const s2Percent = Math.min(100, Math.round((s2Current / s2Total) * 100));
+  const s2Learned = countLearned(s2Cards);
+  const s2Consolidated = countConsolidated(s2Cards);
+  const s2Percent = Math.min(100, Math.round((s2Learned / s2Total) * 100));
   const s2Unlocked = s1Achieved;
-  const s2Achieved = s2Unlocked && s2Percent >= 80 && s2Current >= 1;
+  const s2Achieved = s2Unlocked && s2Percent >= 80 && s2Learned >= 1;
 
   const star2Progress: StarProgress = {
-    current: s2Current,
+    current: s2Learned,
+    consolidated: s2Consolidated,
     total: s2Total,
     percent: s2Percent,
     isUnlocked: s2Unlocked,
@@ -278,13 +296,15 @@ function computeChapterStats(
   };
 
   const s3Total = s3Cards.length || 1;
-  const s3Current = countConsolidated(s3Cards);
-  const s3Percent = Math.min(100, Math.round((s3Current / s3Total) * 100));
+  const s3Learned = countLearned(s3Cards);
+  const s3Consolidated = countConsolidated(s3Cards);
+  const s3Percent = Math.min(100, Math.round((s3Learned / s3Total) * 100));
   const s3Unlocked = s2Achieved;
-  const s3Achieved = s3Unlocked && s3Percent >= 80 && s3Current >= 1;
+  const s3Achieved = s3Unlocked && s3Percent >= 80 && s3Learned >= 1;
 
   const star3Progress: StarProgress = {
-    current: s3Current,
+    current: s3Learned,
+    consolidated: s3Consolidated,
     total: s3Total,
     percent: s3Percent,
     isUnlocked: s3Unlocked,
@@ -298,9 +318,9 @@ function computeChapterStats(
 
   let statusText = 'Neu erkunden';
   if (stars === 3) statusText = 'Gemeistert! ⭐⭐⭐';
-  else if (stars === 2) statusText = `Stufe 3 (${s3Current}/${s3Total} gefestigt)`;
-  else if (stars === 1) statusText = `Stufe 2 (${s2Current}/${s2Total} gefestigt)`;
-  else if (s1Current > 0) statusText = `Stufe 1 (${s1Current}/${s1Total} gefestigt)`;
+  else if (stars === 2) statusText = `Stufe 3 (${s3Learned}/${s3Total} gelernt)`;
+  else if (stars === 1) statusText = `Stufe 2 (${s2Learned}/${s2Total} gelernt)`;
+  else if (s1Learned > 0) statusText = `Stufe 1 (${s1Learned}/${s1Total} gelernt)`;
   else if (percent > 0) statusText = `${percent}% gelernt`;
 
   return {

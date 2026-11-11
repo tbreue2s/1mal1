@@ -42,8 +42,10 @@
     const attempted = factCards.filter((c) => c.totalAttempts > 0);
     if (attempted.length === 0) return 'new';
 
-    // Fehler / Kürzlich falsch beantwortet (repetitions === 0)
-    const hasError = attempted.some((c) => c.repetitions === 0);
+    // Fehler / Kürzlich falsch beantwortet (repetitions === 0 oder lastQuality === 0)
+    const hasError = attempted.some(
+      (c) => c.repetitions === 0 || c.lastQuality === 0
+    );
     if (hasError) return 'wrong';
 
     // Alle Varianten gemeistert?

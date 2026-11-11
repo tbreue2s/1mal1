@@ -37,17 +37,19 @@
   let counts = $derived.by(() => {
     let mastered = 0;
     let learning = 0;
+    let wrong = 0;
     let fresh = 0;
 
     for (const a of factors) {
       for (const b of factors) {
         const st = getStatus(a, b);
         if (st === 'mastered') mastered++;
+        else if (st === 'wrong') wrong++;
         else if (st === 'learning') learning++;
         else fresh++;
       }
     }
-    return { mastered, learning, fresh };
+    return { mastered, learning, wrong, fresh };
   });
 
   let selectedCellCards = $derived(
@@ -60,6 +62,7 @@
 
   function statusLabel(status: MasteryStatus): string {
     if (status === 'mastered') return 'Gemeistert';
+    if (status === 'wrong') return 'Wiederholen ⚠️';
     if (status === 'learning') return 'Am Lernen';
     return 'Neu';
   }
@@ -111,6 +114,12 @@
     </div>
 
     <div class="legend-bar">
+      {#if counts.wrong > 0}
+        <div class="legend-item">
+          <span class="dot" style="background: #f43f5e;"></span>
+          <span>Rot: Wiederholen (<strong>{counts.wrong}</strong>)</span>
+        </div>
+      {/if}
       <div class="legend-item">
         <span class="dot dot-mastered"></span>
         <span>Grün: Gemeistert (<strong>{counts.mastered}</strong>)</span>
@@ -478,6 +487,13 @@
     border-color: #e2e8f0;
   }
 
+  .status-wrong {
+    background: #ffe4e6;
+    color: #9f1239;
+    border-color: #fda4af;
+    font-weight: 800;
+  }
+
   .status-learning {
     background: #fef3c7;
     color: #92400e;
@@ -718,6 +734,13 @@
     background: #1e293b;
     color: #94a3b8;
     border-color: #334155;
+  }
+
+  :global(.dark) .matrix-cell.status-wrong {
+    background: #4c0519aa;
+    color: #fda4af;
+    border-color: #e11d48;
+    font-weight: 800;
   }
 
   :global(.dark) .matrix-cell.status-learning {

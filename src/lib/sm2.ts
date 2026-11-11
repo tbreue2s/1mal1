@@ -183,10 +183,17 @@ export function getMatrixCellStatus(cardsForFact: TaskCard[]): MasteryStatus {
     return 'new';
   }
 
+  // Hat eine der versuchten Karten kürzlich einen Fehler (repetitions === 0 oder lastQuality === 0)?
+  const anyFailedRecently = attempted.some(
+    (c) => c.repetitions === 0 || c.lastQuality === 0
+  );
+  if (anyFailedRecently) {
+    return 'wrong';
+  }
+
   const primaryCard = cardsForFact.find((c) => c.type === 'mult' || c.type === 'add');
   if (primaryCard && getCardMastery(primaryCard) === 'mastered') {
-    const anyFailedRecently = attempted.some((c) => c.repetitions === 0);
-    return anyFailedRecently ? 'learning' : 'mastered';
+    return 'mastered';
   }
 
   const masteredCount = attempted.filter((c) => getCardMastery(c) === 'mastered').length;

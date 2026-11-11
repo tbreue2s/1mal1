@@ -112,42 +112,85 @@
     const isFirstTryForThisCard = !seenCardIds.has(currentCard.id);
     seenCardIds.add(currentCard.id);
 
-    const result = applySM2(currentCard, isCorrect, responseMs);
-    lastQuality = result.quality;
-    feedbackTitle = result.feedbackTitle;
-    feedbackSubtitle = result.feedbackSubtitle;
+    let cardToSave: TaskCard;
+    let starsToAward = 0;
 
-    if (isCorrect) {
-      if (!isFirstTryForThisCard) {
+    if (!isFirstTryForThisCard && retryCardIds.has(currentCard.id)) {
+      // In-Session Wiederholung einer zuvor falsch gelösten Karte
+      if (isCorrect) {
         feedbackTitle = 'Klasse korrigiert! 👏';
-        feedbackSubtitle = 'Denkfehler direkt gemeistert!';
+        feedbackSubtitle = 'Denkfehler verstanden! Morgen noch einmal zur Festigung.';
+        feedbackState = 'correct';
+        playSuccessSound(soundEnabled, false);
+
+        // Didaktisch entscheidend: Die Karte wurde heute zuerst verfehlt.
+        // Das sofortige Lösen schließt die Runde positiv ab, löscht aber NICHT den Fehler.
+        // Die Karte bleibt auf repetitions = 0 und lastQuality = 0 (damit sie rot bleibt und morgen wiederholt wird!)
+        cardToSave = {
+          ...currentCard,
+          repetitions: 0,
+          interval: 1,
+          dueDate: Date.now() + 86400000,
+          lastQuality: 0,
+          totalAttempts: currentCard.totalAttempts + 1,
+          correctAttempts: currentCard.correctAttempts + 1,
+        };
+        starsToAward = 1; // 1 Belohnungsstern für das Nachbessern
       } else {
+        sessionMistakes++;
+        feedbackState = 'wrong';
+        feedbackTitle = 'Nochmal anschauen:';
+        feedbackSubtitle = 'Schau dir das Ergebnis genau an.';
+        playErrorSound(soundEnabled);
+
+        cardToSave = {
+          ...currentCard,
+          repetitions: 0,
+          interval: 0,
+          dueDate: Date.now(),
+          lastQuality: 0,
+          totalAttempts: currentCard.totalAttempts + 1,
+        };
+        queue = [...queue, { ...cardToSave }];
+        starsToAward = 0;
+      }
+    } else {
+      // Regulärer Erstversuch in dieser Session
+      const result = applySM2(currentCard, isCorrect, responseMs);
+      cardToSave = result.updatedCard;
+      lastQuality = result.quality;
+      feedbackTitle = result.feedbackTitle;
+      feedbackSubtitle = result.feedbackSubtitle;
+
+      if (isCorrect) {
         if (result.quality === 4) {
           sessionFastCount++;
         }
         sessionCorrectFirstTry++;
-      }
-      feedbackState = 'correct';
-      playSuccessSound(soundEnabled, result.quality === 4);
-    } else {
-      sessionMistakes++;
-      feedbackState = 'wrong';
-      playErrorSound(soundEnabled);
-      retryCardIds.add(currentCard.id);
+        feedbackState = 'correct';
+        playSuccessSound(soundEnabled, result.quality === 4);
+        starsToAward = result.starsEarned;
+      } else {
+        sessionMistakes++;
+        feedbackState = 'wrong';
+        playErrorSound(soundEnabled);
+        retryCardIds.add(currentCard.id);
 
-      // Fehlerkarte ans Ende anhängen
-      queue = [...queue, { ...result.updatedCard }];
+        // Fehlerkarte ans Ende anhängen
+        queue = [...queue, { ...cardToSave }];
+        starsToAward = 0;
+      }
     }
 
-    sessionStars += result.starsEarned;
+    sessionStars += starsToAward;
     onCardEvaluated(
-      result.updatedCard,
-      result.starsEarned,
+      cardToSave,
+      starsToAward,
       isCorrect,
-      result.quality === 4
+      isFirstTryForThisCard && lastQuality === 4
     );
 
-    const delay = isCorrect ? (result.quality === 4 ? 800 : 1200) : 2200;
+    const delay = isCorrect ? (lastQuality === 4 ? 800 : 1200) : 2200;
     autoNextTimeout = setTimeout(() => {
       advanceNext();
     }, delay);

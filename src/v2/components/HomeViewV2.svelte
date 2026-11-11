@@ -335,7 +335,10 @@
                 </span>
               {:else}
                 <span class="text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/70 px-1.5 py-0.2 rounded-md">
-                  {selectedChapter.star1Progress.current} / {selectedChapter.star1Progress.total} gefestigt ({selectedChapter.star1Progress.percent}%)
+                  {selectedChapter.star1Progress.current} / {selectedChapter.star1Progress.total} gelernt ({selectedChapter.star1Progress.percent}%)
+                  {#if selectedChapter.star1Progress.consolidated > 0}
+                    · {selectedChapter.star1Progress.consolidated} gefestigt
+                  {/if}
                 </span>
               {/if}
             </div>
@@ -376,7 +379,10 @@
                 </span>
               {:else if selectedChapter.star2Progress.isUnlocked}
                 <span class="text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/70 px-1.5 py-0.2 rounded-md">
-                  {selectedChapter.star2Progress.current} / {selectedChapter.star2Progress.total} gefestigt ({selectedChapter.star2Progress.percent}%)
+                  {selectedChapter.star2Progress.current} / {selectedChapter.star2Progress.total} gelernt ({selectedChapter.star2Progress.percent}%)
+                  {#if selectedChapter.star2Progress.consolidated > 0}
+                    · {selectedChapter.star2Progress.consolidated} gefestigt
+                  {/if}
                 </span>
               {:else}
                 <span class="text-[10px] font-bold text-slate-400">Gesperrt 🔒 (erst Stern 1)</span>
@@ -420,7 +426,10 @@
                 </span>
               {:else if selectedChapter.star3Progress.isUnlocked}
                 <span class="text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/70 px-1.5 py-0.2 rounded-md">
-                  {selectedChapter.star3Progress.current} / {selectedChapter.star3Progress.total} gefestigt ({selectedChapter.star3Progress.percent}%)
+                  {selectedChapter.star3Progress.current} / {selectedChapter.star3Progress.total} gelernt ({selectedChapter.star3Progress.percent}%)
+                  {#if selectedChapter.star3Progress.consolidated > 0}
+                    · {selectedChapter.star3Progress.consolidated} gefestigt
+                  {/if}
                 </span>
               {:else}
                 <span class="text-[10px] font-bold text-slate-400">Gesperrt 🔒 (erst Stern 2)</span>
