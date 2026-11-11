@@ -346,8 +346,10 @@
       {cards}
       {stats}
       {activeProfile}
+      {profiles}
       {isDevelop}
       soundEnabled={stats.soundEnabled}
+      onSelectProfile={handleSelectProfile}
       onToggleSound={handleToggleSound}
       onStartSession={startDailySession}
       onStartRowSession={startRowSession}

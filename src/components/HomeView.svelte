@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { countDueCards } from '../lib/storage';
   import type { GameMode, TaskCard, UserProfile, UserStats } from '../lib/types';
   import { getWorldChapters, type WorldChapter } from '../lib/chapters';
@@ -9,8 +10,10 @@
     cards: TaskCard[];
     stats: UserStats;
     activeProfile: UserProfile;
+    profiles: UserProfile[];
     soundEnabled: boolean;
     isDevelop?: boolean;
+    onSelectProfile: (id: string) => void;
     onToggleSound: () => void;
     onStartSession: () => void;
     onStartRowSession: (row: number) => void;
@@ -26,8 +29,10 @@
     cards,
     stats,
     activeProfile,
+    profiles,
     soundEnabled,
     isDevelop = false,
+    onSelectProfile,
     onToggleSound,
     onStartSession,
     onStartRowSession,
@@ -42,34 +47,126 @@
   let dueCount = $derived(countDueCards(cards, stats.typeFilter, gameMode));
 
   let selectedChapter = $state<WorldChapter | null>(null);
+  let showUserDropdown = $state(false);
+  let dropdownWrapEl = $state<HTMLDivElement | null>(null);
+
+  onMount(() => {
+    function handleOutsideClick(event: MouseEvent) {
+      if (
+        showUserDropdown &&
+        dropdownWrapEl &&
+        event.target instanceof Node &&
+        !dropdownWrapEl.contains(event.target)
+      ) {
+        showUserDropdown = false;
+      }
+    }
+    function handleKeydown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && showUserDropdown) {
+        showUserDropdown = false;
+      }
+    }
+    window.addEventListener('click', handleOutsideClick);
+    window.addEventListener('keydown', handleKeydown);
+    return () => {
+      window.removeEventListener('click', handleOutsideClick);
+      window.removeEventListener('keydown', handleKeydown);
+    };
+  });
 </script>
 
 <div class="w-full max-w-lg mx-auto space-y-3.5 pb-8">
   <!-- 1. HEADER MIT STREAK, STERNE, QUICK SOUND & PROFIL -->
-  <header class="flex items-center justify-between bg-white dark:bg-[#111827] rounded-2xl p-3 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-    <button
-      type="button"
-      class="flex items-center gap-2.5 text-left bg-transparent border-none p-0 cursor-pointer"
-      onclick={onOpenUsers}
-      title="Spieler wechseln oder verwalten"
-    >
-      <div class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 flex items-center justify-center text-xl shadow-2xs">
-        {activeProfile.avatar}
-      </div>
-      <div>
-        <div class="flex items-center gap-1.5">
-          <span class="font-extrabold text-slate-900 dark:text-slate-100 text-sm">
-            {activeProfile.name}
-          </span>
-          <span class="text-[9px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200/60 dark:border-indigo-800/40 px-1.5 py-0.2 rounded-md">
-            {gameMode === 'mult' ? '1×1' : '+ / −'}
+  <header class="flex items-center justify-between bg-white dark:bg-[#111827] rounded-2xl p-3 border border-slate-200/80 dark:border-slate-800 shadow-xs relative">
+    <!-- Profil-Button mit Dropdown für schnellen Benutzerwechsel -->
+    <div class="relative" bind:this={dropdownWrapEl}>
+      <button
+        type="button"
+        class="flex items-center gap-2.5 text-left bg-transparent border-none p-0 cursor-pointer"
+        onclick={() => (showUserDropdown = !showUserDropdown)}
+        aria-haspopup="true"
+        aria-expanded={showUserDropdown}
+        title="Spieler wechseln ({activeProfile.name})"
+      >
+        <div class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 flex items-center justify-center text-xl shadow-2xs">
+          {activeProfile.avatar}
+        </div>
+        <div>
+          <div class="flex items-center gap-1.5">
+            <span class="font-extrabold text-slate-900 dark:text-slate-100 text-sm">
+              {activeProfile.name}
+            </span>
+            <span class="text-[9px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200/60 dark:border-indigo-800/40 px-1.5 py-0.2 rounded-md">
+              {gameMode === 'mult' ? '1×1' : '+ / −'}
+            </span>
+            <span class="text-[10px] text-slate-400 dark:text-slate-500 font-black">▾</span>
+          </div>
+          <span class="text-[11px] font-medium text-slate-400 dark:text-slate-400">
+            {gameMode === 'mult' ? '1×1 Meister' : 'Zahlen-Held'} · Wechseln
           </span>
         </div>
-        <span class="text-[11px] font-medium text-slate-400 dark:text-slate-400">
-          {gameMode === 'mult' ? '1×1 Meister' : 'Zahlen-Held'} · Profil anpassen
-        </span>
-      </div>
-    </button>
+      </button>
+
+      {#if showUserDropdown}
+        <div
+          class="absolute left-0 top-full mt-2 w-64 bg-white dark:bg-[#111827] border-2 border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl z-50 p-1.5 space-y-1 animate-slide-up"
+          role="menu"
+          aria-label="Spieler auswählen"
+        >
+          <div class="px-2.5 py-1 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+            Nutzer wechseln
+          </div>
+
+          {#each profiles as prof (prof.id)}
+            {@const isCurrent = prof.id === activeProfile.id}
+            {@const profMode = prof.activeGameMode ?? 'mult'}
+            {@const profStats = profMode === 'plusminus' ? prof.plusMinusStats : prof.stats}
+            <button
+              type="button"
+              role="menuitem"
+              onclick={() => {
+                showUserDropdown = false;
+                onSelectProfile(prof.id);
+              }}
+              class="w-full flex items-center gap-2.5 p-2 rounded-xl text-left border-none cursor-pointer transition {
+                isCurrent
+                  ? 'bg-indigo-50 dark:bg-indigo-950/70 text-indigo-950 dark:text-white font-bold'
+                  : 'bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800/70 text-slate-700 dark:text-slate-200'
+              }"
+            >
+              <span class="text-xl shrink-0">{prof.avatar}</span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-1">
+                  <span class="font-black text-xs truncate">{prof.name}</span>
+                  {#if isCurrent}
+                    <span class="text-indigo-600 dark:text-indigo-400 text-xs font-black">✓</span>
+                  {/if}
+                </div>
+                <div class="text-[10px] text-slate-400 font-semibold truncate">
+                  {profMode === 'plusminus' ? '➕ Zahlen-Held' : '✖️ 1×1'} · 🔥 {profStats.streakDays} · ⭐ {profStats.stars}
+                </div>
+              </div>
+            </button>
+          {/each}
+
+          <div class="border-t border-slate-100 dark:border-slate-800 my-1"></div>
+
+          <!-- Unterste Option: In die Einstellungen / Optionen & Nutzer gehen -->
+          <button
+            type="button"
+            role="menuitem"
+            onclick={() => {
+              showUserDropdown = false;
+              onOpenUsers();
+            }}
+            class="w-full flex items-center gap-2 p-2 rounded-xl text-left text-xs font-black text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 border-none cursor-pointer transition"
+          >
+            <span>⚙️</span>
+            <span>Optionen &amp; Nutzer verwalten</span>
+          </button>
+        </div>
+      {/if}
+    </div>
 
     <div class="flex items-center gap-1.5 text-xs font-bold">
       <!-- Streak mit Tagesstatus -->
