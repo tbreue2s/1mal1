@@ -1,0 +1,14 @@
+{
+  "created_at": "2026-11-13T23:38:47.382442+00:00",
+  "flattened": false,
+  "friendly_name": "v3 didactic rework",
+  "mission_id": "01M7BMEA5TJ95FHNR2JEF1W2RE",
+  "mission_number": null,
+  "mission_slug": "v3-didactic-rework-01M7BMEA",
+  "mission_type": "software-dev",
+  "purpose_context": "This mission advances v3 didactic rework on v3-didactic-rework so stakeholders can track the work from mission creation onward.",
+  "purpose_tldr": "v3 didactic rework",
+  "slug": "v3-didactic-rework-01M7BMEA",
+  "target_branch": "v3-didactic-rework",
+  "topology": "single_branch"
+}
