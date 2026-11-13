@@ -12,13 +12,14 @@
     buildSessionQueue,
     createNewProfile,
     loadProfilesAndActiveId,
+    registerDailyPractice,
     removeProfileStorageKeys,
     resetProfileData,
     saveProfilesAndActiveId,
     setManualStreak,
   } from './lib/storage';
   import { themeManager } from './lib/theme.svelte';
-  import type { GameMode, TaskCard, TypeFilter, UserProfile, UserStats } from './lib/types';
+  import type { GameMode, TaskCard, UserProfile, UserStats } from './lib/types';
 
   type Screen = 'home' | 'practice' | 'matrix' | 'users' | 'legal';
 
@@ -100,28 +101,12 @@
     if (nextSound) playKeyTap(true);
   }
 
-  function handleSetTypeFilter(filter: TypeFilter) {
-    updateActiveProfile((prof) => {
-      const mode = prof.activeGameMode ?? 'mult';
-      if (mode === 'plusminus') {
-        return {
-          ...prof,
-          plusMinusStats: { ...prof.plusMinusStats, typeFilter: filter },
-        };
-      }
-      return {
-        ...prof,
-        stats: { ...prof.stats, typeFilter: filter },
-      };
-    });
-  }
-
   function startDailySession() {
     activeSessionQueue = buildSessionQueue(
       cards,
       'daily',
       stats.selectedRows,
-      stats.typeFilter,
+      'auto',
       stats.sessionSize,
       gameMode,
       stats.plusMinusFocus ?? 'up_to_10'
@@ -156,7 +141,7 @@
       cards,
       'rows',
       [row],
-      stats.typeFilter,
+      'auto',
       stats.sessionSize,
       gameMode,
       'rows'
@@ -198,15 +183,17 @@
         const nextPmCards = prof.plusMinusCards.map((c) =>
           c.id === updatedCard.id ? updatedCard : c
         );
-        const curStats = prof.plusMinusStats;
+        const withStreak = registerDailyPractice(prof.plusMinusStats);
         return {
           ...prof,
           plusMinusCards: nextPmCards,
           plusMinusStats: {
-            ...curStats,
-            stars: curStats.stars + starsEarned,
-            totalSolved: curStats.totalSolved + 1,
-            fastSolved: curStats.fastSolved + (isFast ? 1 : 0),
+            ...withStreak,
+            stars: withStreak.stars + starsEarned,
+            totalSolved: isCorrect
+              ? withStreak.totalSolved + 1
+              : withStreak.totalSolved,
+            fastSolved: withStreak.fastSolved + (isFast ? 1 : 0),
           },
         };
       }
@@ -214,15 +201,17 @@
       const nextCards = prof.cards.map((c) =>
         c.id === updatedCard.id ? updatedCard : c
       );
-      const curStats = prof.stats;
+      const withStreak = registerDailyPractice(prof.stats);
       return {
         ...prof,
         cards: nextCards,
         stats: {
-          ...curStats,
-          stars: curStats.stars + starsEarned,
-          totalSolved: curStats.totalSolved + 1,
-          fastSolved: curStats.fastSolved + (isFast ? 1 : 0),
+          ...withStreak,
+          stars: withStreak.stars + starsEarned,
+          totalSolved: isCorrect
+            ? withStreak.totalSolved + 1
+            : withStreak.totalSolved,
+          fastSolved: withStreak.fastSolved + (isFast ? 1 : 0),
         },
       };
     });
@@ -389,7 +378,6 @@
       {profiles}
       activeProfileId={activeProfile.id}
       {gameMode}
-      typeFilter={stats.typeFilter}
       {lastBackup}
       {isDevelop}
       onSelectProfile={handleSelectProfile}
@@ -401,7 +389,6 @@
       onImportProfile={handleImportProfile}
       onSetManualStreak={handleSetManualStreak}
       onSetGameMode={handleSetProfileGameMode}
-      onSetTypeFilter={handleSetTypeFilter}
       onClose={() => (currentScreen = 'home')}
     />
   {/if}

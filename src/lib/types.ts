@@ -37,7 +37,7 @@ export interface TaskCard {
 
 export type LearningMode = 'daily' | 'rows';
 
-export type TypeFilter = 'mult_only' | 'all_types';
+export type TypeFilter = 'auto' | 'mult_only' | 'all_types';
 
 export type PlusMinusFocus =
   | 'number_bonds_10'

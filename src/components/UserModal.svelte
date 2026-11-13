@@ -4,7 +4,7 @@
     downloadProfileBackup,
     parseAndValidateProfileJson,
   } from '../lib/storage';
-  import type { GameMode, TypeFilter, UserProfile } from '../lib/types';
+  import type { GameMode, UserProfile } from '../lib/types';
   import { themeManager, type ThemeMode } from '../lib/theme.svelte';
 
   export interface ProfileBackup {
@@ -18,7 +18,6 @@
     profiles: UserProfile[];
     activeProfileId: string;
     gameMode: GameMode;
-    typeFilter: TypeFilter;
     lastBackup?: ProfileBackup | null;
     isDevelop?: boolean;
     onSelectProfile: (id: string) => void;
@@ -30,7 +29,6 @@
     onImportProfile?: (profile: UserProfile, overwriteId?: string) => void;
     onSetManualStreak: (id: string, streakDays: number, targetMode: GameMode) => void;
     onSetGameMode: (id: string, mode: GameMode) => void;
-    onSetTypeFilter: (filter: TypeFilter) => void;
     onClose: () => void;
   }
 
@@ -38,7 +36,6 @@
     profiles,
     activeProfileId,
     gameMode,
-    typeFilter,
     lastBackup = null,
     isDevelop = false,
     onSelectProfile,
@@ -50,7 +47,6 @@
     onImportProfile,
     onSetManualStreak,
     onSetGameMode,
-    onSetTypeFilter,
     onClose,
   }: Props = $props();
 
@@ -261,51 +257,7 @@
       </p>
     </section>
 
-    <!-- 2. DIDAKTIK-STUFE: RECHENDETAILS -->
-    <section class="mb-4 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800">
-      <span class="text-xs font-black text-slate-700 dark:text-slate-200 block mb-1">
-        ⭐ Aufgabenumfang für Trainings &amp; Missionen:
-      </span>
-      <p class="text-[11px] text-slate-500 dark:text-slate-400 mb-2.5">
-        Legt fest, ob in Trainingsrunden nur die Grundrechenart oder auch Umkehrungen erscheinen:
-      </p>
-      <div class="grid grid-cols-2 gap-2 text-xs">
-        <button
-          type="button"
-          onclick={() => onSetTypeFilter('mult_only')}
-          class="p-2.5 rounded-xl border text-left cursor-pointer transition {
-            typeFilter === 'mult_only'
-              ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/50'
-              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/40'
-          }"
-        >
-          <span class="block font-black text-slate-900 dark:text-white">
-            ⭐ {gameMode === 'mult' ? 'Nur Malnehmen' : 'Nur Plus'}
-          </span>
-          <span class="text-[10px] text-slate-400">
-            {gameMode === 'mult' ? '3 × 4 = ?' : '7 + 5 = ?'}
-          </span>
-        </button>
-        <button
-          type="button"
-          onclick={() => onSetTypeFilter('all_types')}
-          class="p-2.5 rounded-xl border text-left cursor-pointer transition {
-            typeFilter === 'all_types'
-              ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/50'
-              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/40'
-          }"
-        >
-          <span class="block font-black text-slate-900 dark:text-white">
-            ⭐⭐⭐ {gameMode === 'mult' ? 'Inkl. Geteilt & Lücken' : 'Inkl. Minus & Lücken'}
-          </span>
-          <span class="text-[10px] text-slate-400">
-            {gameMode === 'mult' ? '12 : 4 = ? · 3 × ? = 12' : '12 − 5 = ? · 7 + ? = 12'}
-          </span>
-        </button>
-      </div>
-    </section>
-
-    <!-- 3. NUTZERVERWALTUNG -->
+      <!-- 2. NUTZERVERWALTUNG -->
     <section class="space-y-3 mb-4">
       <span class="text-xs font-black text-slate-700 dark:text-slate-200 block">
         👥 Nutzerprofile ({profiles.length}):

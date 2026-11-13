@@ -44,9 +44,12 @@
   }: Props = $props();
 
   let chapters = $derived(getWorldChapters(cards, gameMode));
-  let dueCount = $derived(countDueCards(cards, stats.typeFilter, gameMode));
+  let dueCount = $derived(countDueCards(cards, 'auto', gameMode));
 
-  let selectedChapter = $state<WorldChapter | null>(null);
+  let selectedChapterId = $state<string | null>(null);
+  let selectedChapter = $derived(
+    selectedChapterId ? chapters.find((c) => c.id === selectedChapterId) ?? null : null
+  );
   let showUserDropdown = $state(false);
   let dropdownWrapEl = $state<HTMLDivElement | null>(null);
 
@@ -229,16 +232,16 @@
 
     <h2 class="text-base font-extrabold text-white mt-1">
       {dueCount >= stats.sessionSize
-        ? `${stats.sessionSize} Auffrisch-Karten (Puffer)`
+        ? `${stats.sessionSize} Karten: Auffrischen & Neues`
         : `${stats.sessionSize} gemischte Trainings-Karten`}
     </h2>
     <p class="text-xs text-slate-300 mt-0.5">
       {#if dueCount >= stats.sessionSize}
-        Auffrisch-Modus aktiv: Baut fällige Karten ab, bevor neue hinzukommen.
+        Mischt fällige Wiederholungen mit neuen Aufgaben für deine Rechenwelten.
       {:else}
         {gameMode === 'mult'
-          ? 'Festigt 1×1-Aufgaben im Langzeitgedächtnis vor dem Vergessen.'
-          : 'Schult Verliebte Zahlen & Zehnerübergänge spielerisch im Kopf.'}
+          ? 'Startet mit Malaufgaben und nimmt automatisch Geteilt & Lücken dazu.'
+          : 'Startet mit Plus & Verliebten Zahlen und nimmt automatisch Minus & Lücken dazu.'}
       {/if}
     </p>
 
@@ -290,7 +293,7 @@
               ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-800/60'
               : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60'
           }"
-          onclick={() => (selectedChapter = ch)}
+          onclick={() => (selectedChapterId = ch.id)}
         >
           <div>
             <div class="flex items-center justify-between text-xs">
@@ -387,10 +390,10 @@
   <div
     class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-3"
     onclick={(e) => {
-      if (e.target === e.currentTarget) selectedChapter = null;
+      if (e.target === e.currentTarget) selectedChapterId = null;
     }}
     onkeydown={(e) => {
-      if (e.key === 'Escape') selectedChapter = null;
+      if (e.key === 'Escape') selectedChapterId = null;
     }}
     role="dialog"
     tabindex="-1"
@@ -417,7 +420,7 @@
         </div>
         <button
           type="button"
-          onclick={() => (selectedChapter = null)}
+          onclick={() => (selectedChapterId = null)}
           class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white text-xs font-bold border-none cursor-pointer flex items-center justify-center"
         >
           ✕
@@ -572,7 +575,7 @@
         type="button"
         onclick={() => {
           const ch = selectedChapter;
-          selectedChapter = null;
+          selectedChapterId = null;
           if (ch) onStartChapterSession(ch);
         }}
         class="w-full bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-extrabold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition btn-calm-primary cursor-pointer border-none"

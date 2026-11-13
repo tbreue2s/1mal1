@@ -85,7 +85,7 @@ export function getWorldChapters(
       'Partnerzahlen zur 10',
       'number_bonds_10',
       cards.filter((c) => c.fact[2] === 10),
-      'Ergänzen zur 10 (z. B. 3 + ? = 10)',
+      'Ergänzen & Plus zur 10 (z. B. 3 + ? = 10)',
       'Minus von der 10 (z. B. 10 − 3 = ?)',
       'Minus-Lücken (z. B. 10 − ? = 3)'
     ),
@@ -202,7 +202,7 @@ function computeChapterStats(
 
   if (pmFocus === 'number_bonds_10') {
     s1Cards = chapterCards.filter(
-      (c) => c.type === 'gap_add_a' || c.type === 'gap_add_b'
+      (c) => c.type === 'add' || c.type === 'gap_add_a' || c.type === 'gap_add_b'
     );
     s2Cards = chapterCards.filter((c) => c.type === 'sub');
     s3Cards = chapterCards.filter(
@@ -348,7 +348,7 @@ export function buildChapterSessionQueue(
 
   if (chapter.pmFocus === 'number_bonds_10') {
     const gapAdd = relevantCards.filter(
-      (c) => c.type === 'gap_add_a' || c.type === 'gap_add_b'
+      (c) => c.type === 'add' || c.type === 'gap_add_a' || c.type === 'gap_add_b'
     );
     const sub = relevantCards.filter((c) => c.type === 'sub');
     const gapSub = relevantCards.filter(

@@ -56,7 +56,7 @@ export function getDefaultStats(mode: GameMode = 'mult'): UserStats {
     soundEnabled: true,
     selectedRows: mode === 'mult' ? [2, 5, 10] : [1, 2, 5, 10],
     learningMode: 'daily',
-    typeFilter: 'mult_only',
+    typeFilter: 'auto',
     plusMinusFocus: 'up_to_10',
     sessionSize: 12,
   };
@@ -148,9 +148,11 @@ function hydrateStats(
         ? parsed.learningMode
         : 'daily',
     typeFilter:
-      parsed.typeFilter === 'all_types' || parsed.typeFilter === 'mult_only'
+      parsed.typeFilter === 'auto' ||
+      parsed.typeFilter === 'all_types' ||
+      parsed.typeFilter === 'mult_only'
         ? parsed.typeFilter
-        : 'mult_only',
+        : 'auto',
     plusMinusFocus: validFocus,
     sessionSize:
       typeof parsed.sessionSize === 'number' && parsed.sessionSize >= 5
@@ -665,6 +667,70 @@ function getPlusMinusPriority(card: TaskCard): number {
 }
 
 /**
+ * Prüft, ob eine Karte als "gelernt" gilt (mindestens 1× richtig ohne akuten Fehler).
+ */
+function isCardLearned(card: TaskCard | undefined): boolean {
+  return Boolean(card && card.repetitions >= 1 && (card.lastQuality ?? 0) >= 2);
+}
+
+/**
+ * Erstellt für die automatische Aufgaben-Progression ('auto') eine Lookup-Map,
+ * welche Aufgabentypen für ein Zahlenpaar (a, b) bereits freigeschaltet sind:
+ * - Grundaufgaben (Mal / Plus sowie Ergänzen zur 10 bei Verliebten Zahlen) sind immer frei.
+ * - Umkehraufgaben (Geteilt / Minus) werden freigeschaltet, sobald die Grundaufgabe gelernt ist.
+ * - Lückenaufgaben werden freigeschaltet, sobald auch die Umkehraufgabe gelernt ist.
+ * - Bereits angefangene Karten (totalAttempts > 0) bleiben immer aktiv für Wiederholungen.
+ */
+function buildAutoUnlockedCardFilter(
+  allCards: TaskCard[],
+  gameMode: GameMode
+): (card: TaskCard) => boolean {
+  const byFact = new Map<string, TaskCard[]>();
+  for (const c of allCards) {
+    const key = `${c.fact[0]}_${c.fact[1]}`;
+    let list = byFact.get(key);
+    if (!list) {
+      list = [];
+      byFact.set(key, list);
+    }
+    list.push(c);
+  }
+
+  return (card: TaskCard): boolean => {
+    // Bereits geübte Karten dürfen bei Fälligkeit immer wiederholt werden
+    if (card.totalAttempts > 0) return true;
+
+    const [a, b, c] = card.fact;
+    const isBonds10 = gameMode === 'plusminus' && c === 10;
+
+    // Stufe 1 (Grundaufgaben): Immer freigeschaltet
+    if (card.type === 'mult' || card.type === 'add') return true;
+    if (isBonds10 && (card.type === 'gap_add_a' || card.type === 'gap_add_b')) {
+      return true;
+    }
+
+    const family = byFact.get(`${a}_${b}`) ?? [];
+    const basicCard = family.find((x) => x.type === 'mult' || x.type === 'add');
+    const basicLearned =
+      isCardLearned(basicCard) ||
+      (isBonds10 &&
+        family.some(
+          (x) =>
+            (x.type === 'gap_add_a' || x.type === 'gap_add_b') && isCardLearned(x)
+        ));
+
+    // Stufe 2 (Umkehraufgaben: Geteilt / Minus): Sobald Grundaufgabe gelernt
+    if (card.type === 'div' || card.type === 'sub') {
+      return basicLearned;
+    }
+
+    // Stufe 3 (Lückenaufgaben): Sobald Grundaufgabe UND Umkehraufgabe gelernt
+    const inverseCard = family.find((x) => x.type === 'div' || x.type === 'sub');
+    return basicLearned && isCardLearned(inverseCard);
+  };
+}
+
+/**
  * Erstellt eine Trainingsrunde basierend auf Spielmodus ('mult' vs. 'plusminus'),
  * Lern-Modus ('daily' vs. 'rows'), Reihen-/Fokus-Auswahl und Typ-Filter.
  */
@@ -672,7 +738,7 @@ export function buildSessionQueue(
   allCards: TaskCard[],
   mode: LearningMode,
   selectedRows: number[],
-  typeFilter: TypeFilter,
+  typeFilter: TypeFilter = 'auto',
   sessionSize = 12,
   gameMode: GameMode = 'mult',
   plusMinusFocus: PlusMinusFocus = 'up_to_10',
@@ -681,20 +747,39 @@ export function buildSessionQueue(
   const activeRows =
     selectedRows.length > 0 ? selectedRows : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-  // 1. Typ-Filter anwenden (Nur Malnehmen bzw. Nur Plusrechnen vs. Alle Typen inkl. Umkehr & Lücken)
+  const isAutoUnlocked =
+    typeFilter === 'auto' ? buildAutoUnlockedCardFilter(allCards, gameMode) : null;
+
+  // 1. Typ-Filter anwenden ('auto' = mitwachsend, 'mult_only' = nur Basis, 'all_types' = alle)
   let candidates = allCards.filter((card) => {
+    if (isAutoUnlocked) {
+      return isAutoUnlocked(card);
+    }
+
     if (gameMode === 'plusminus' && plusMinusFocus === 'number_bonds_10') {
-      // Bei Verliebten Zahlen zur 10: Reine Addition "3+7=?" ist didaktisch witzlos (immer 10).
-      // Stufe 1 (mult_only): Ergänzen zur 10 ("3+?=10" und "?+7=10")
       if (typeFilter === 'mult_only') {
-        return card.type === 'gap_add_a' || card.type === 'gap_add_b';
+        return (
+          card.type === 'add' ||
+          card.type === 'gap_add_a' ||
+          card.type === 'gap_add_b'
+        );
       }
-      // Stufe 2/3 (all_types): Ergänzen + Subtraktion ("10-3=?") + Minus-Lücke ("10-?=3")
-      return card.type !== 'add';
+      return true;
     }
 
     if (typeFilter === 'mult_only') {
-      return gameMode === 'plusminus' ? card.type === 'add' : card.type === 'mult';
+      if (gameMode === 'plusminus') {
+        // Bei Verliebten Zahlen (Summe 10) auch Ergänzungsaufgaben zulassen, damit Stern 1 erreichbar ist
+        if (card.fact[2] === 10) {
+          return (
+            card.type === 'add' ||
+            card.type === 'gap_add_a' ||
+            card.type === 'gap_add_b'
+          );
+        }
+        return card.type === 'add';
+      }
+      return card.type === 'mult';
     }
     return true;
   });
@@ -731,6 +816,19 @@ export function buildSessionQueue(
       return a.easeFactor - b.easeFactor;
     });
 
+  const getCardStage = (c: TaskCard): number => {
+    if (c.type === 'mult' || c.type === 'add') return 1;
+    if (
+      gameMode === 'plusminus' &&
+      c.fact[2] === 10 &&
+      (c.type === 'gap_add_a' || c.type === 'gap_add_b')
+    ) {
+      return 1;
+    }
+    if (c.type === 'div' || c.type === 'sub') return 2;
+    return 3;
+  };
+
   const newCards = candidates
     .filter((c) => c.totalAttempts === 0)
     .sort((a, b) => {
@@ -745,10 +843,9 @@ export function buildSessionQueue(
           if (prioA !== prioB) return prioA - prioB;
         }
       }
-      const isPrimaryA = a.type === 'mult' || a.type === 'add';
-      const isPrimaryB = b.type === 'mult' || b.type === 'add';
-      if (isPrimaryA && !isPrimaryB) return -1;
-      if (isPrimaryB && !isPrimaryA) return 1;
+      const stageA = getCardStage(a);
+      const stageB = getCardStage(b);
+      if (stageA !== stageB) return stageA - stageB;
       return Math.random() - 0.5;
     });
 
@@ -759,18 +856,17 @@ export function buildSessionQueue(
   const selected: TaskCard[] = [];
 
   if (mode === 'daily') {
-    // Überfälligkeits-Bremse („Rückstands-Puffer“):
-    // Wenn 12 oder mehr Karten überfällig sind, besteht die Session zu 100% aus
-    // fälligen Karten ("Auffrisch-Modus"), damit sich kein unüberwindbarer Berg anstaut.
-    const isHeavyBacklog = dueCards.length >= sessionSize;
-    const maxDue = isHeavyBacklog
-      ? Math.min(dueCards.length, sessionSize)
-      : Math.min(dueCards.length, Math.ceil(sessionSize * 0.65));
+    // Auch bei vielen fälligen Karten (Backlog) mischen wir mindestens 25% neue Karten
+    // (z. B. 3 von 12) bei, sofern es noch ungelernte Karten gibt.
+    // Dadurch bewegt sich der sichtbare Fortschritt in den Rechenwelten in JEDER Tages-Mission weiter!
+    const hasNewCards = newCards.length > 0;
+    const maxDueRatio = hasNewCards ? 0.75 : 1.0;
+    const maxDue = Math.min(dueCards.length, Math.floor(sessionSize * maxDueRatio));
 
     selected.push(...dueCards.slice(0, maxDue));
 
     const remainingForNew = sessionSize - selected.length;
-    if (remainingForNew > 0) {
+    if (remainingForNew > 0 && hasNewCards) {
       const newPool = newCards.slice(0, Math.max(remainingForNew * 3, 20));
       const shuffledNew = smartShuffle(newPool);
       selected.push(...shuffledNew.slice(0, remainingForNew));
@@ -808,7 +904,7 @@ export function buildSessionQueue(
  */
 export function countDueCards(
   allCards: TaskCard[],
-  typeFilter: TypeFilter,
+  typeFilter: TypeFilter = 'auto',
   gameMode: GameMode = 'mult',
   now = Date.now()
 ): number {
@@ -816,7 +912,8 @@ export function countDueCards(
     const matchesType =
       typeFilter === 'mult_only'
         ? gameMode === 'plusminus'
-          ? c.type === 'add'
+          ? c.type === 'add' ||
+            (c.fact[2] === 10 && (c.type === 'gap_add_a' || c.type === 'gap_add_b'))
           : c.type === 'mult'
         : true;
     return (
