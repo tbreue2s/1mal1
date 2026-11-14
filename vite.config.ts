@@ -5,6 +5,10 @@ import { resolve } from 'path'
 
 export default defineConfig({
   base: './',
+  server: {
+    port: 5180,
+    host: true,
+  },
   build: {
     rollupOptions: {
       input: {
