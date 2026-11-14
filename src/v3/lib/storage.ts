@@ -246,3 +246,29 @@ export function countDueFactsV3(facts: FactFamily[], now = Date.now()): number {
     (f) => f.totalAttempts > 0 && (f.dueDate <= now || f.repetitions === 0)
   ).length;
 }
+
+export function downloadProfileBackupV3(profile: UserProfileV3): void {
+  if (typeof window === 'undefined') return;
+  const exportData = {
+    format: 'zahlenblitz_profile_backup_v3',
+    version: 3,
+    exportedAt: new Date().toISOString(),
+    profile,
+  };
+  const jsonStr = JSON.stringify(exportData, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const safeName =
+    profile.name
+      .toLowerCase()
+      .replace(/[^a-z0-9äöüß_-]/gi, '_')
+      .replace(/_+/g, '_') || 'spieler';
+  const dateStr = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `zahlenblitz_v3_profil_${safeName}_${dateStr}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

@@ -1,8 +1,12 @@
 <script lang="ts">
-  import { importProfilesFromV2 } from '../lib/migration';
+  import {
+    importProfilesFromV2,
+    parseAndImportProfilesJson,
+  } from '../lib/migration';
   import {
     AVAILABLE_AVATARS,
     createNewProfileV3,
+    downloadProfileBackupV3,
   } from '../lib/storage';
   import type { UserProfileV3 } from '../lib/types';
 
@@ -38,6 +42,8 @@
   let importMessage = $state<string | null>(null);
   let importSuccess = $state(false);
 
+  let fileInputEl: HTMLInputElement | null = $state(null);
+
   function handleCreate() {
     if (!newName.trim()) return;
     onCreateProfile(newName.trim(), selectedAvatar);
@@ -63,6 +69,27 @@
     importSuccess = res.success;
     if (res.success && res.profiles.length > 0) {
       onImportSuccess(res.profiles);
+    }
+  }
+
+  async function handleFileSelect(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const file = target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const res = parseAndImportProfilesJson(text);
+      importMessage = res.message;
+      importSuccess = res.success;
+      if (res.success && res.profiles.length > 0) {
+        onImportSuccess(res.profiles);
+      }
+    } catch (err) {
+      importMessage = `Fehler beim Lesen der Datei: ${err instanceof Error ? err.message : String(err)}`;
+      importSuccess = false;
+    } finally {
+      target.value = '';
     }
   }
 </script>
@@ -135,6 +162,14 @@
           </button>
 
           <div class="flex items-center gap-1">
+            <button
+              type="button"
+              onclick={() => downloadProfileBackupV3(prof)}
+              class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-xs"
+              title="Profil als Backup (.json) sichern"
+            >
+              💾
+            </button>
             <button
               type="button"
               onclick={() => startEdit(prof)}
@@ -219,13 +254,13 @@
       </div>
     </div>
 
-    <!-- 4. V2-DATEN IMPORTIEREN (NON-DESTRUCTIVE) -->
-    <div class="p-3 bg-indigo-50/50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-200/60 dark:border-indigo-800/40 space-y-2">
+    <!-- 4. V2-DATEN & BACKUP IMPORTIEREN (NON-DESTRUCTIVE) -->
+    <div class="p-3 bg-indigo-50/50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-200/60 dark:border-indigo-800/40 space-y-2.5">
       <div class="flex items-center gap-2">
         <span class="text-lg">🔄</span>
         <div>
           <span class="text-xs font-extrabold text-indigo-950 dark:text-indigo-200 block">
-            Daten aus Version 2 importieren
+            Daten importieren &amp; wiederherstellen
           </span>
           <span class="text-[10px] text-slate-500 dark:text-slate-400">
             Überträgt Sterne, Streaks &amp; Lernstände verlustfrei nach v3. Version 2 bleibt zu 100% unverändert.
@@ -234,18 +269,37 @@
       </div>
 
       {#if importMessage}
-        <div class="p-2 rounded-xl text-xs font-bold {importSuccess ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800'}">
+        <div class="p-2.5 rounded-xl text-xs font-bold {importSuccess ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800'}">
           {importMessage}
         </div>
       {/if}
 
-      <button
-        type="button"
-        onclick={handleImportV2}
-        class="w-full py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold border-none cursor-pointer transition shadow-xs"
-      >
-        Stand aus Version 2 jetzt importieren
-      </button>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+        <button
+          type="button"
+          onclick={handleImportV2}
+          class="py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold border-none cursor-pointer transition shadow-xs text-center"
+        >
+          Aus Version 2 (Browser)
+        </button>
+
+        <button
+          type="button"
+          onclick={() => fileInputEl?.click()}
+          class="py-2 px-3 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-extrabold border border-slate-300 dark:border-slate-600 cursor-pointer transition shadow-xs text-center flex items-center justify-center gap-1.5"
+        >
+          <span>📁</span>
+          <span>Aus Backup-Datei (.json)</span>
+        </button>
+      </div>
+
+      <input
+        type="file"
+        accept=".json,application/json"
+        class="hidden"
+        bind:this={fileInputEl}
+        onchange={handleFileSelect}
+      />
     </div>
   </div>
 </div>
