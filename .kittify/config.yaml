@@ -1,0 +1,17 @@
+project:
+  uuid: 9fc4259f-ad21-481a-b833-9540c354e2d2
+  slug: 1mal1
+  node_id: ea82c90b5bc5
+  build_id: fdd8885c-e330-5c81-ba76-1046133bcf59
+mission_type_activations:
+- software-dev
+- documentation
+- research
+- plan
+vcs:
+  type: git
+agents:
+  available:
+  - antigravity
+  auto_commit: true
+  lint_on_edit: false
