@@ -22,6 +22,7 @@
     onPracticeFact: (fact: FactFamily) => void;
     onOpenMatrix: () => void;
     onOpenUsers: () => void;
+    onOpenLegal: () => void;
   }
 
   let {
@@ -39,6 +40,7 @@
     onPracticeFact,
     onOpenMatrix,
     onOpenUsers,
+    onOpenLegal,
   }: Props = $props();
 
   let chapters = $derived(getWorldChaptersV3(facts, gameMode));
@@ -313,6 +315,38 @@
     onPracticeFact={onPracticeFact}
     onOpenFullscreen={onOpenMatrix}
   />
+
+  <!-- 6. FOOTER: OPTIONEN, IMPRESSUM & DATENSCHUTZ, RELOAD -->
+  <footer class="pt-3 pb-4 flex items-center justify-between text-slate-400 dark:text-slate-500 text-[11px] border-t border-slate-100 dark:border-slate-800/80">
+    <button
+      type="button"
+      onclick={onOpenUsers}
+      class="hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-xs font-semibold"
+    >
+      <span>⚙️</span> <span>Optionen</span>
+    </button>
+
+    <button
+      type="button"
+      onclick={onOpenLegal}
+      class="hover:text-slate-700 dark:hover:text-slate-300 bg-transparent border-none p-0 cursor-pointer text-[11px] font-semibold hover:underline"
+    >
+      Impressum &amp; Datenschutz
+    </button>
+
+    <div class="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+      <span>ZahlenBlitz 3.0</span>
+      <button
+        type="button"
+        onclick={() => window.location.reload()}
+        class="hover:text-slate-700 dark:hover:text-slate-300 bg-transparent border-none p-0 cursor-pointer text-[11px] leading-none transition"
+        title="App neu laden (nach Updates)"
+        aria-label="App neu laden"
+      >
+        🔄
+      </button>
+    </div>
+  </footer>
 </div>
 
 <!-- KAPITEL-DRAWER -->

@@ -141,12 +141,22 @@ export function registerDailyPracticeV3(stats: UserStatsV3): UserStatsV3 {
     return stats.streakDays === 0 ? { ...stats, streakDays: 1 } : stats;
   }
 
-  const yesterdayDate = new Date();
-  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-  const yesterday = getLocalDateString(yesterdayDate);
+  let nextStreak = 1;
+  if (stats.lastPracticeDate) {
+    // Kindgerechter Wochenend- & Reisepuffer:
+    // Grundschulkinder haben kein eigenes Smartphone und sind am Wochenende oder auf Ausflügen oft ohne Tablet.
+    // Bis zu 3 Tage Pause (z.B. Freitag geübt -> Sa/So Pause -> Montag wieder da) brechen die Serie NICHT ab!
+    const todayDate = new Date(today + 'T00:00:00');
+    const lastDate = new Date(stats.lastPracticeDate + 'T00:00:00');
+    const diffMs = todayDate.getTime() - lastDate.getTime();
+    const diffDays = Math.round(diffMs / (1000 * 3600 * 24));
 
-  const nextStreak =
-    stats.lastPracticeDate === yesterday ? stats.streakDays + 1 : 1;
+    if (diffDays >= 1 && diffDays <= 3) {
+      nextStreak = (stats.streakDays || 0) + 1;
+    } else {
+      nextStreak = 1;
+    }
+  }
 
   return {
     ...stats,

@@ -153,14 +153,14 @@ export function convertV2ProfileToV3(p: any, idx = 0): UserProfileV3 {
 }
 
 /**
- * Validiert und importiert Profile aus einem JSON-String (z.B. Backup-Datei).
+ * Parst und validiert Profile aus einem JSON-String (z.B. Backup-Datei), ohne localStorage zu verändern.
  * Unterstützt:
  * - v3-Backup-Dateien ({ format: 'zahlenblitz_profile_backup_v3', profile: ... })
  * - v2-Backup-Dateien ({ format: 'zahlenblitz_profile_backup_v1', profile: ... })
  * - Arrays von Profilen (v2 oder v3)
  * - Einzelne Profilobjekte
  */
-export function parseAndImportProfilesJson(rawText: string): {
+export function parseProfilesFromJson(rawText: string): {
   success: boolean;
   profiles: UserProfileV3[];
   message: string;
@@ -215,18 +215,65 @@ export function parseAndImportProfilesJson(rawText: string): {
     return convertV2ProfileToV3(c, idx);
   });
 
+  return {
+    success: true,
+    profiles: convertedProfiles,
+    message: `${convertedProfiles.length} Spielerprofil(e) in der Datei gefunden.`,
+  };
+}
+
+/**
+ * Validiert und importiert Profile aus einem JSON-String (z.B. Backup-Datei).
+ * Mergt die Profile mit bestehenden Daten, sodass andere Spieler NIEMALS gelöscht werden!
+ */
+export function parseAndImportProfilesJson(rawText: string): {
+  success: boolean;
+  profiles: UserProfileV3[];
+  message: string;
+} {
+  const parsedRes = parseProfilesFromJson(rawText);
+  if (!parsedRes.success || parsedRes.profiles.length === 0) {
+    return parsedRes;
+  }
+
+  // Bestehende Profile laden, um andere Profile nicht zu löschen
+  let existing: UserProfileV3[] = [];
   if (typeof window !== 'undefined') {
     try {
-      window.localStorage.setItem(V3_PROFILES_KEY, JSON.stringify(convertedProfiles));
-      window.localStorage.setItem(V3_ACTIVE_PROFILE_KEY, convertedProfiles[0].id);
+      const raw = window.localStorage.getItem(V3_PROFILES_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) existing = arr;
+      }
+    } catch {}
+  }
+
+  const merged = [...existing];
+  for (const imp of parsedRes.profiles) {
+    const idx = merged.findIndex(
+      (p) =>
+        p.id === imp.id ||
+        p.name.trim().toLowerCase() === imp.name.trim().toLowerCase()
+    );
+    if (idx >= 0) {
+      merged[idx] = imp;
+    } else {
+      merged.push(imp);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(V3_PROFILES_KEY, JSON.stringify(merged));
+      window.localStorage.setItem(V3_ACTIVE_PROFILE_KEY, parsedRes.profiles[0].id);
       setImportPromptStatus('done');
     } catch {}
   }
 
   return {
     success: true,
-    profiles: convertedProfiles,
-    message: `${convertedProfiles.length} Spielerprofil(e) erfolgreich aus Datei importiert!`,
+    profiles: merged,
+    message: `${parsedRes.profiles.length} Spielerprofil(e) erfolgreich importiert!`,
   };
 }
 

@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { parseAndImportProfilesJson } from '../lib/migration';
+  import { parseProfilesFromJson } from '../lib/migration';
   import {
     AVAILABLE_AVATARS,
     createNewProfileV3,
     downloadProfileBackupV3,
+    saveV3ProfilesAndActiveId,
   } from '../lib/storage';
+  import { themeManager } from '../../lib/theme.svelte';
   import type { UserProfileV3 } from '../lib/types';
 
   interface Props {
@@ -39,6 +41,14 @@
   let importMessage = $state<string | null>(null);
   let importSuccess = $state(false);
 
+  interface PendingConflict {
+    incoming: UserProfileV3;
+    existing: UserProfileV3;
+    remainingQueue: UserProfileV3[];
+    processedMerged: UserProfileV3[];
+  }
+
+  let pendingConflict = $state<PendingConflict | null>(null);
   let fileInputEl: HTMLInputElement | null = $state(null);
 
   function handleCreate() {
@@ -67,18 +77,91 @@
 
     try {
       const text = await file.text();
-      const res = parseAndImportProfilesJson(text);
-      importMessage = res.message;
-      importSuccess = res.success;
-      if (res.success && res.profiles.length > 0) {
-        onImportSuccess(res.profiles);
+      const res = parseProfilesFromJson(text);
+      if (!res.success || res.profiles.length === 0) {
+        importMessage = res.message;
+        importSuccess = false;
+        return;
       }
+
+      importMessage = null;
+      processImportQueue(res.profiles, [...profiles]);
     } catch (err) {
       importMessage = `Fehler beim Lesen der Datei: ${err instanceof Error ? err.message : String(err)}`;
       importSuccess = false;
     } finally {
       target.value = '';
     }
+  }
+
+  function processImportQueue(
+    queue: UserProfileV3[],
+    currentMerged: UserProfileV3[]
+  ) {
+    if (queue.length === 0) {
+      finishImport(currentMerged);
+      return;
+    }
+
+    const [current, ...remaining] = queue;
+    // Prüfung auf Namens- oder ID-Überschneidung
+    const match = currentMerged.find(
+      (p) =>
+        p.id === current.id ||
+        p.name.trim().toLowerCase() === current.name.trim().toLowerCase()
+    );
+
+    if (match) {
+      // Konflikt: Benutzer explizit um Entscheidung bitten
+      pendingConflict = {
+        incoming: current,
+        existing: match,
+        remainingQueue: remaining,
+        processedMerged: currentMerged,
+      };
+    } else {
+      // Kein Konflikt: Sicher hinzufügen, andere Spieler bleiben unangetastet
+      processImportQueue(remaining, [...currentMerged, current]);
+    }
+  }
+
+  function handleConflictChoice(action: 'overwrite' | 'keep_both' | 'cancel') {
+    if (!pendingConflict) return;
+    const { incoming, existing, remainingQueue, processedMerged } =
+      pendingConflict;
+    pendingConflict = null;
+
+    if (action === 'cancel') {
+      importMessage = 'Import abgebrochen. Es wurden keine Änderungen vorgenommen.';
+      importSuccess = false;
+      return;
+    }
+
+    let nextMerged = [...processedMerged];
+    if (action === 'overwrite') {
+      // Bestehenden Spieler mit den Daten der Datei aktualisieren (andere Spieler bleiben unverändert)
+      nextMerged = nextMerged.map((p) =>
+        p.id === existing.id ? { ...incoming, id: existing.id } : p
+      );
+    } else if (action === 'keep_both') {
+      // Als neues Profil mit Zusatznamen anlegen
+      const copyProfile: UserProfileV3 = {
+        ...incoming,
+        id: `user_v3_copy_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: `${incoming.name} (Import)`,
+      };
+      nextMerged.push(copyProfile);
+    }
+
+    processImportQueue(remainingQueue, nextMerged);
+  }
+
+  function finishImport(finalMerged: UserProfileV3[]) {
+    const activeId = finalMerged[finalMerged.length - 1].id;
+    saveV3ProfilesAndActiveId(finalMerged, activeId);
+    onImportSuccess(finalMerged);
+    importMessage = `Erfolgreich importiert! (${finalMerged.length} Spieler vorhanden). Andere Spieler wurden nicht gelöscht.`;
+    importSuccess = true;
   }
 </script>
 
@@ -113,6 +196,56 @@
       >
         ✕
       </button>
+    </div>
+
+    <!-- ERSCHEINUNGSBILD / THEME SWITCHER -->
+    <div class="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200/80 dark:border-slate-700 space-y-2">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">
+          Erscheinungsbild
+        </span>
+        <span class="text-[10px] text-slate-400">
+          Design wählen
+        </span>
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <button
+          type="button"
+          onclick={() => themeManager.setMode('system')}
+          class="py-2 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition cursor-pointer {
+            themeManager.mode === 'system'
+              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-slate-400'
+          }"
+        >
+          <span class="text-base">💻</span>
+          <span>System</span>
+        </button>
+        <button
+          type="button"
+          onclick={() => themeManager.setMode('light')}
+          class="py-2 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition cursor-pointer {
+            themeManager.mode === 'light'
+              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-slate-400'
+          }"
+        >
+          <span class="text-base">☀️</span>
+          <span>Hell</span>
+        </button>
+        <button
+          type="button"
+          onclick={() => themeManager.setMode('dark')}
+          class="py-2 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition cursor-pointer {
+            themeManager.mode === 'dark'
+              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-slate-400'
+          }"
+        >
+          <span class="text-base">🌙</span>
+          <span>Dunkel</span>
+        </button>
+      </div>
     </div>
 
     <!-- 1. SPIELER-LISTE -->
@@ -242,15 +375,15 @@
       </div>
     </div>
 
-    <!-- 4. BACKUP-DATEI IMPORTIEREN -->
-    <div class="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200/80 dark:border-slate-700 space-y-2">
+    <!-- 4. BACKUP-DATEI IMPORTIEREN MIT SICHERHEITSABFRAGE -->
+    <div class="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200/80 dark:border-slate-700 space-y-3">
       <div class="flex items-center justify-between">
         <div>
           <span class="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">
-            Backup wiederherstellen
+            Backup importieren
           </span>
           <span class="text-[10px] text-slate-400">
-            Spielstand von einem anderen Gerät per .json-Datei laden
+            Spieler hinzufügen (andere Profile bleiben sicher erhalten)
           </span>
         </div>
         <button
@@ -262,6 +395,42 @@
           <span>Datei wählen</span>
         </button>
       </div>
+
+      <!-- KONFLIKT-DIALOG VOR DEM ÜBERSCHREIBEN -->
+      {#if pendingConflict}
+        <div class="p-3.5 bg-amber-50 dark:bg-amber-950/60 rounded-2xl border-2 border-amber-300 dark:border-amber-700 space-y-2.5 animate-fade-in">
+          <div class="flex items-center gap-2 text-amber-800 dark:text-amber-200">
+            <span class="text-lg">⚠️</span>
+            <span class="text-xs font-extrabold">Spieler existiert bereits!</span>
+          </div>
+          <p class="text-xs text-amber-900 dark:text-amber-100 font-semibold m-0 leading-relaxed">
+            Ein Spieler mit dem Namen <strong>„{pendingConflict.existing.name}“</strong> existiert bereits auf diesem Gerät. Was möchtest du tun?
+          </p>
+          <div class="flex flex-col sm:flex-row gap-2 pt-1">
+            <button
+              type="button"
+              onclick={() => handleConflictChoice('overwrite')}
+              class="flex-1 py-1.5 px-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold border-none cursor-pointer"
+            >
+              Überschreiben
+            </button>
+            <button
+              type="button"
+              onclick={() => handleConflictChoice('keep_both')}
+              class="flex-1 py-1.5 px-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-bold border border-slate-300 dark:border-slate-600 cursor-pointer"
+            >
+              Als Kopie anlegen
+            </button>
+            <button
+              type="button"
+              onclick={() => handleConflictChoice('cancel')}
+              class="py-1.5 px-2.5 rounded-xl bg-transparent hover:bg-black/5 dark:hover:bg-white/5 text-slate-500 text-xs font-bold border-none cursor-pointer"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      {/if}
 
       {#if importMessage}
         <div class="p-2 rounded-xl text-xs font-bold {importSuccess ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800'}">

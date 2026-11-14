@@ -1,6 +1,7 @@
 export type ThemeMode = 'system' | 'light' | 'dark';
 
-const THEME_STORAGE_KEY = 'v2_theme_preference';
+const THEME_STORAGE_KEY = 'v3_theme_preference';
+const THEME_STORAGE_KEY_LEGACY = 'v2_theme_preference';
 
 class ThemeManager {
   mode = $state<ThemeMode>('system');
@@ -10,7 +11,9 @@ class ThemeManager {
     if (typeof window === 'undefined') return;
 
     try {
-      const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+      const saved =
+        window.localStorage.getItem(THEME_STORAGE_KEY) ||
+        window.localStorage.getItem(THEME_STORAGE_KEY_LEGACY);
       if (saved === 'light' || saved === 'dark' || saved === 'system') {
         this.mode = saved;
       } else {
@@ -37,6 +40,7 @@ class ThemeManager {
     this.mode = mode;
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, mode);
+      window.localStorage.setItem(THEME_STORAGE_KEY_LEGACY, mode);
     } catch {
       // Ignorieren
     }

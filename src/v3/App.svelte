@@ -19,8 +19,9 @@
   import MatrixView from './components/MatrixView.svelte';
   import PracticeView from './components/PracticeView.svelte';
   import UserModal from './components/UserModal.svelte';
+  import LegalView from '../components/LegalView.svelte';
 
-  type Screen = 'home' | 'practice' | 'matrix' | 'users';
+  type Screen = 'home' | 'practice' | 'matrix' | 'users' | 'legal';
 
   let currentScreen = $state<Screen>('home');
   let loaded = loadV3ProfilesAndActiveId();
@@ -157,7 +158,10 @@
   }
 
   function handleImportSuccess(imported: UserProfileV3[]) {
-    persistAll(imported, imported[0].id);
+    const keepActive = imported.some((p) => p.id === activeProfileId)
+      ? activeProfileId
+      : imported[imported.length - 1].id;
+    persistAll(imported, keepActive);
   }
 </script>
 
@@ -178,6 +182,7 @@
       onPracticeFact={handlePracticeFact}
       onOpenMatrix={() => (currentScreen = 'matrix')}
       onOpenUsers={() => (currentScreen = 'users')}
+      onOpenLegal={() => (currentScreen = 'legal')}
     />
   {:else if currentScreen === 'practice'}
     <PracticeView
@@ -197,6 +202,10 @@
       onPracticeFact={handlePracticeFact}
       onBack={() => (currentScreen = 'home')}
     />
+  {:else if currentScreen === 'legal'}
+    <div class="w-full max-w-2xl mx-auto pb-8">
+      <LegalView onBack={() => (currentScreen = 'home')} />
+    </div>
   {/if}
 
   <!-- Benutzer- & Optionen-Modal -->

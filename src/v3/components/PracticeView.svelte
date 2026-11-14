@@ -11,6 +11,7 @@
   import { applySM2ToFact, FAST_THRESHOLD_MS } from '../lib/sm2';
   import type { FactFamily } from '../lib/types';
   import Keypad from './Keypad.svelte';
+  import TwentyFrame from './TwentyFrame.svelte';
 
   interface Props {
     initialQueue: QueuedTaskV3[];
@@ -45,6 +46,7 @@
   let feedbackSubtitle = $state('');
   let lastQuality = $state<0 | 2 | 3 | 4>(0);
   let lastUserAnswer = $state<number | null>(null);
+  let lastResponseMs = $state(0);
   let sessionFinished = $state(false);
 
   let sessionStars = $state(0);
@@ -110,6 +112,7 @@
     clearTimers();
 
     const responseMs = Math.max(100, Date.now() - taskStartMs);
+    lastResponseMs = responseMs;
     const userAnswer = Number.parseInt(inputDigits, 10);
     const isCorrect = userAnswer === equationParts.solution;
     const isFirstTryForThisFact = !seenFactIds.has(currentTask.fact.id);
@@ -300,6 +303,11 @@
               {equationParts.fullEquationWithSolution}
             </div>
 
+            <!-- Didaktische Mengendarstellung im Zwanzigerfeld für Zahlen-Held -->
+            {#if currentTask.fact.mode === 'plusminus'}
+              <TwentyFrame fact={currentTask.fact} variant={currentTask.variant} />
+            {/if}
+
             <!-- Didaktischer Denkhinweis -->
             <div class="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 text-xs text-indigo-950 dark:text-indigo-200 font-semibold leading-relaxed">
               {equationParts.strategyHint}
@@ -339,11 +347,26 @@
 
           <!-- Feedback-Meldung bei Erfolg -->
           {#if feedbackState !== 'idle'}
-            <div class="mt-2.5 sm:mt-3 animate-fade-in">
+            <div class="mt-2.5 sm:mt-3 animate-fade-in space-y-1">
+              <div class="flex items-center justify-center gap-1.5">
+                {#if lastQuality === 4}
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shadow-xs">
+                    ⚡ Blitz-Antwort! ({(lastResponseMs / 1000).toFixed(1)}s)
+                  </span>
+                {:else if lastQuality === 3}
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                    👍 Richtig gelöst! ({(lastResponseMs / 1000).toFixed(1)}s)
+                  </span>
+                {:else if lastQuality === 2}
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-700">
+                    🧠 Gut überlegt! ({(lastResponseMs / 1000).toFixed(1)}s)
+                  </span>
+                {/if}
+              </div>
               <div class="text-sm font-black text-emerald-600 dark:text-emerald-400">
                 {feedbackTitle}
               </div>
-              <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <div class="text-xs text-slate-500 dark:text-slate-400">
                 {feedbackSubtitle}
               </div>
             </div>
