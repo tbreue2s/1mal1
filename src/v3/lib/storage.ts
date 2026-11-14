@@ -3,6 +3,7 @@ import {
   generatePlusMinusFacts,
   selectTaskVariant,
 } from './generator';
+import { checkHasV2Data, importProfilesFromV2 } from './migration';
 import type { QueuedTaskV3 } from './chapters';
 import type {
   FactFamily,
@@ -81,10 +82,39 @@ export function loadV3ProfilesAndActiveId(): {
     if (raw) {
       const parsed = JSON.parse(raw) as UserProfileV3[];
       if (Array.isArray(parsed) && parsed.length > 0) {
+        // Falls in v3 nur ein ungespieltes Dummy-Profil liegt, aber v2 echte Daten hat: automatisch migrieren!
+        const isUnplayedDefault =
+          parsed.length === 1 &&
+          (parsed[0].multStats.totalSolved ?? 0) === 0 &&
+          (parsed[0].multStats.stars ?? 0) === 0 &&
+          (parsed[0].plusMinusStats.totalSolved ?? 0) === 0 &&
+          (parsed[0].plusMinusStats.stars ?? 0) === 0;
+
+        if (isUnplayedDefault && checkHasV2Data()) {
+          const autoImport = importProfilesFromV2();
+          if (autoImport.success && autoImport.profiles.length > 0) {
+            return {
+              profiles: autoImport.profiles,
+              activeProfileId: autoImport.profiles[0].id,
+            };
+          }
+        }
+
         const savedActiveId = window.localStorage.getItem(V3_ACTIVE_PROFILE_ID_KEY);
         const exists = parsed.some((p) => p.id === savedActiveId);
         const activeProfileId = exists && savedActiveId ? savedActiveId : parsed[0].id;
         return { profiles: parsed, activeProfileId };
+      }
+    }
+
+    // Wenn v3 noch gar keine Daten hat: automatisch verlustfrei aus v2 übernehmen!
+    if (checkHasV2Data()) {
+      const autoImport = importProfilesFromV2();
+      if (autoImport.success && autoImport.profiles.length > 0) {
+        return {
+          profiles: autoImport.profiles,
+          activeProfileId: autoImport.profiles[0].id,
+        };
       }
     }
   } catch {}

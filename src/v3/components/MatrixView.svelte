@@ -223,21 +223,27 @@
 
   <!-- Große 11x11 Matrix -->
   <div class="bg-white dark:bg-[#111827] rounded-3xl p-3 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-x-auto">
+    <!-- Achsen-Beschriftung zur Orientierung -->
+    <div class="flex items-center justify-between text-xs text-indigo-600 dark:text-indigo-400 font-extrabold max-w-xl mx-auto px-2 pb-1.5">
+      <span>↓ Zeile (erste Zahl)</span>
+      <span>Spalte (zweite Zahl) →</span>
+    </div>
+
     <div class="min-w-[340px] max-w-xl mx-auto">
       <div class="grid grid-cols-11 gap-1 sm:gap-1.5 p-1.5 sm:p-2 bg-slate-100 dark:bg-slate-900 rounded-2xl select-none">
         
         <!-- Obere linke Ecke -->
-        <div class="aspect-square rounded-xl bg-indigo-600 dark:bg-indigo-700 text-white flex items-center justify-center text-xs sm:text-base font-black shadow-xs">
+        <div class="aspect-square rounded-xl bg-indigo-600 dark:bg-indigo-500 text-white flex items-center justify-center text-xs sm:text-base font-black shadow-sm ring-1 ring-indigo-400">
           {gameMode === 'mult' ? '×' : '+'}
         </div>
 
         <!-- Spalten-Header oben (b = 1..10) -->
         {#each numbers as b}
           {@const isColActive = activeB === b}
-          <div class="aspect-square rounded-xl flex items-center justify-center text-xs sm:text-sm font-black transition-colors {
+          <div class="aspect-square rounded-xl flex items-center justify-center text-xs sm:text-sm font-black transition-all {
             isColActive
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'bg-slate-200/90 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
+              ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600 dark:border-indigo-500 shadow-md ring-2 ring-indigo-400 scale-105 z-10'
+              : 'bg-indigo-100/90 dark:bg-indigo-950/70 border border-indigo-300/80 dark:border-indigo-700/80 text-indigo-950 dark:text-indigo-100 shadow-2xs'
           }">
             {b}
           </div>
@@ -247,10 +253,10 @@
         {#each numbers as a}
           <!-- Zeilen-Header links (a) -->
           {@const isRowActive = activeA === a}
-          <div class="aspect-square rounded-xl flex items-center justify-center text-xs sm:text-sm font-black transition-colors {
+          <div class="aspect-square rounded-xl flex items-center justify-center text-xs sm:text-sm font-black transition-all {
             isRowActive
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'bg-slate-200/90 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
+              ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600 dark:border-indigo-500 shadow-md ring-2 ring-indigo-400 scale-105 z-10'
+              : 'bg-indigo-100/90 dark:bg-indigo-950/70 border border-indigo-300/80 dark:border-indigo-700/80 text-indigo-950 dark:text-indigo-100 shadow-2xs'
           }">
             {a}
           </div>

@@ -178,7 +178,6 @@
       onPracticeFact={handlePracticeFact}
       onOpenMatrix={() => (currentScreen = 'matrix')}
       onOpenUsers={() => (currentScreen = 'users')}
-      onImportSuccess={handleImportSuccess}
     />
   {:else if currentScreen === 'practice'}
     <PracticeView

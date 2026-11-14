@@ -153,20 +153,26 @@
 
   <!-- 11x11 Matrix Grid (Zahlen oben und links für volle Übersicht) -->
   <div class="w-full overflow-x-auto pb-1">
+    <!-- Achsen-Beschriftung zur Orientierung -->
+    <div class="flex items-center justify-between text-[10px] text-indigo-600 dark:text-indigo-400 font-extrabold max-w-sm mx-auto px-1.5 pb-1">
+      <span>↓ Zeile (1. Zahl)</span>
+      <span>Spalte (2. Zahl) →</span>
+    </div>
+
     <div class="grid grid-cols-11 gap-0.5 sm:gap-1 min-w-[280px] max-w-sm mx-auto p-1.5 sm:p-2 bg-slate-100 dark:bg-slate-900 rounded-2xl select-none">
       
       <!-- Obere linke Ecke (Operator) -->
-      <div class="aspect-square rounded-md bg-indigo-600 dark:bg-indigo-700 text-white flex items-center justify-center text-[10px] sm:text-xs font-black shadow-xs">
+      <div class="aspect-square rounded-md bg-indigo-600 dark:bg-indigo-500 text-white flex items-center justify-center text-[10px] sm:text-xs font-black shadow-sm ring-1 ring-indigo-400">
         {gameMode === 'mult' ? '×' : '+'}
       </div>
 
       <!-- Spalten-Header oben (b = 1..10) -->
       {#each numbers as b}
         {@const isColActive = activeB === b}
-        <div class="aspect-square rounded-md flex items-center justify-center text-[9px] sm:text-[10px] font-black transition-colors {
+        <div class="aspect-square rounded-md flex items-center justify-center text-[9.5px] sm:text-[11px] font-black transition-all {
           isColActive
-            ? 'bg-indigo-600 text-white shadow-xs'
-            : 'bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
+            ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600 dark:border-indigo-500 shadow-md ring-2 ring-indigo-400 scale-105 z-10'
+            : 'bg-indigo-100/90 dark:bg-indigo-950/70 border border-indigo-300/80 dark:border-indigo-700/80 text-indigo-950 dark:text-indigo-100 shadow-2xs'
         }">
           {b}
         </div>
@@ -176,10 +182,10 @@
       {#each numbers as a}
         <!-- Zeilen-Header links (a) -->
         {@const isRowActive = activeA === a}
-        <div class="aspect-square rounded-md flex items-center justify-center text-[9px] sm:text-[10px] font-black transition-colors {
+        <div class="aspect-square rounded-md flex items-center justify-center text-[9.5px] sm:text-[11px] font-black transition-all {
           isRowActive
-            ? 'bg-indigo-600 text-white shadow-xs'
-            : 'bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
+            ? 'bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-600 dark:border-indigo-500 shadow-md ring-2 ring-indigo-400 scale-105 z-10'
+            : 'bg-indigo-100/90 dark:bg-indigo-950/70 border border-indigo-300/80 dark:border-indigo-700/80 text-indigo-950 dark:text-indigo-100 shadow-2xs'
         }">
           {a}
         </div>

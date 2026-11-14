@@ -1,15 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import {
     getWorldChaptersV3,
     type WorldChapterV3,
   } from '../lib/chapters';
-  import {
-    checkHasV2Data,
-    getImportPromptStatus,
-    importProfilesFromV2,
-    setImportPromptStatus,
-  } from '../lib/migration';
   import { countDueFactsV3 } from '../lib/storage';
   import type { FactFamily, GameMode, UserProfileV3, UserStatsV3 } from '../lib/types';
   import Heatmap from './Heatmap.svelte';
@@ -29,7 +22,6 @@
     onPracticeFact: (fact: FactFamily) => void;
     onOpenMatrix: () => void;
     onOpenUsers: () => void;
-    onImportSuccess: (profiles: UserProfileV3[]) => void;
   }
 
   let {
@@ -47,7 +39,6 @@
     onPracticeFact,
     onOpenMatrix,
     onOpenUsers,
-    onImportSuccess,
   }: Props = $props();
 
   let chapters = $derived(getWorldChaptersV3(facts, gameMode));
@@ -60,33 +51,7 @@
       : null
   );
 
-  let showFirstRunImportModal = $state(false);
   let showUserDropdown = $state(false);
-
-  onMount(() => {
-    // Prüfe First-Run Import Onboarding
-    const status = getImportPromptStatus();
-    if (status === 'pending' && checkHasV2Data()) {
-      showFirstRunImportModal = true;
-    }
-  });
-
-  function handleFirstRunImportYes() {
-    const res = importProfilesFromV2();
-    if (res.success && res.profiles.length > 0) {
-      onImportSuccess(res.profiles);
-    }
-    showFirstRunImportModal = false;
-  }
-
-  function handleFirstRunImportLater() {
-    showFirstRunImportModal = false;
-  }
-
-  function handleFirstRunImportNever() {
-    setImportPromptStatus('never');
-    showFirstRunImportModal = false;
-  }
 </script>
 
 <div class="w-full max-w-lg mx-auto space-y-3.5 pb-8">
@@ -425,59 +390,6 @@
         <span>🚀</span>
         <span>Diese Rechenwelt jetzt üben</span>
       </button>
-    </div>
-  </div>
-{/if}
-
-<!-- 6. FIRST-RUN ONBOARDING MODAL FÜR V2-IMPORT -->
-{#if showFirstRunImportModal}
-  <div
-    class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fade-in"
-    tabindex="-1"
-    role="dialog"
-    aria-modal="true"
-    aria-label="Spielstände übernehmen"
-  >
-    <div class="w-full max-w-md bg-white dark:bg-[#111827] border-2 border-indigo-400 dark:border-indigo-600 rounded-3xl p-6 shadow-2xl space-y-4 animate-slide-up">
-      <div class="text-4xl text-center">🚀</div>
-      <h3 class="text-lg font-black text-slate-900 dark:text-white text-center m-0">
-        Willkommen bei ZahlenBlitz 3.0!
-      </h3>
-      <p class="text-xs text-slate-600 dark:text-slate-300 text-center leading-relaxed m-0">
-        Wir haben bestehende Spielstände aus Version 2 gefunden. Möchtest du deine Spielerprofile, Sterne und bisherigen Lernfortschritte direkt in Version 3 mitnehmen?
-      </p>
-
-      <div class="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-[11px] text-indigo-900 dark:text-indigo-200 font-medium">
-        🛡️ <strong>Hinweis:</strong> Deine bisherige Version 2 bleibt dabei zu 100% unverändert erhalten und kann jederzeit weitergenutzt werden.
-      </div>
-
-      <div class="space-y-2 pt-1">
-        <button
-          type="button"
-          onclick={handleFirstRunImportYes}
-          class="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-md transition btn-calm-primary border-none cursor-pointer flex items-center justify-center gap-2"
-        >
-          <span>⭐</span>
-          <span>Ja, Spielstände jetzt übernehmen</span>
-        </button>
-
-        <div class="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onclick={handleFirstRunImportLater}
-            class="py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-extrabold text-xs border-none cursor-pointer"
-          >
-            ⏰ Später erinnern
-          </button>
-          <button
-            type="button"
-            onclick={handleFirstRunImportNever}
-            class="py-2.5 px-3 rounded-xl bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 font-bold text-xs border-none cursor-pointer"
-          >
-            ✕ Nein, frisch starten
-          </button>
-        </div>
-      </div>
     </div>
   </div>
 {/if}
