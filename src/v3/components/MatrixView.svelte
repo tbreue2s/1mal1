@@ -21,6 +21,8 @@
   const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
   let selectedFact = $state<FactFamily | null>(null);
+  let hoveredCell = $state<{ a: number; b: number } | null>(null);
+  let activeFilter = $state<'none' | 'squares' | 'core' | 'bonds10' | 'doubles'>('none');
 
   function getFact(a: number, b: number): FactFamily | undefined {
     return facts.find((f) => f.a === a && f.b === b);
@@ -30,6 +32,23 @@
     const f = getFact(a, b);
     return f ? getFactMastery(f) : 'new';
   }
+
+  function isHighlighted(a: number, b: number): boolean {
+    if (activeFilter === 'none') return false;
+    if (activeFilter === 'squares' || activeFilter === 'doubles') return a === b;
+    if (activeFilter === 'bonds10') return a + b === 10;
+    if (activeFilter === 'core') {
+      return a === 1 || a === 2 || a === 5 || a === 10 || b === 1 || b === 2 || b === 5 || b === 10;
+    }
+    return false;
+  }
+
+  function toggleFilter(filter: 'squares' | 'core' | 'bonds10' | 'doubles') {
+    activeFilter = activeFilter === filter ? 'none' : filter;
+  }
+
+  let activeA = $derived(hoveredCell?.a ?? selectedFact?.a ?? null);
+  let activeB = $derived(hoveredCell?.b ?? selectedFact?.b ?? null);
 
   let counts = $derived.by(() => {
     let mastered = 0;
@@ -144,45 +163,138 @@
     </div>
   </div>
 
-  <!-- Große 10x10 Matrix -->
-  <div class="bg-white dark:bg-[#111827] rounded-3xl p-3 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-x-auto">
-    <div class="min-w-[320px]">
-      <!-- Spalten-Header -->
-      <div class="grid grid-cols-11 gap-1 text-center font-black text-[10px] text-slate-400 mb-1">
-        <div>{gameMode === 'mult' ? '×' : '+'}</div>
-        {#each numbers as a}
-          <div>{a}</div>
-        {/each}
-      </div>
+  <!-- Filter-Leiste & Didaktische Hilfen -->
+  <div class="flex items-center justify-between flex-wrap gap-2 px-1">
+    <div class="flex items-center gap-1.5 flex-wrap">
+      <span class="text-[11px] font-extrabold text-slate-400">Didaktische Muster:</span>
+      {#if gameMode === 'mult'}
+        <button
+          type="button"
+          onclick={() => toggleFilter('squares')}
+          class="text-xs font-bold px-2.5 py-1 rounded-xl border cursor-pointer transition {
+            activeFilter === 'squares'
+              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+          }"
+        >
+          💡 Quadratzahlen (a = b)
+        </button>
+        <button
+          type="button"
+          onclick={() => toggleFilter('core')}
+          class="text-xs font-bold px-2.5 py-1 rounded-xl border cursor-pointer transition {
+            activeFilter === 'core'
+              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+          }"
+        >
+          ⭐ Kernaufgaben (1, 2, 5, 10)
+        </button>
+      {:else}
+        <button
+          type="button"
+          onclick={() => toggleFilter('bonds10')}
+          class="text-xs font-bold px-2.5 py-1 rounded-xl border cursor-pointer transition {
+            activeFilter === 'bonds10'
+              ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+          }"
+        >
+          ❤️ Verliebte Zahlen (=10)
+        </button>
+        <button
+          type="button"
+          onclick={() => toggleFilter('doubles')}
+          class="text-xs font-bold px-2.5 py-1 rounded-xl border cursor-pointer transition {
+            activeFilter === 'doubles'
+              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+          }"
+        >
+          ⚡ Verdoppeln (a = b)
+        </button>
+      {/if}
+    </div>
 
-      <!-- Zeilen -->
-      {#each numbers as b}
-        <div class="grid grid-cols-11 gap-1 text-center items-center my-0.5">
-          <div class="font-black text-[10px] text-slate-400">{b}</div>
-          {#each numbers as a}
+    <span class="text-[11px] text-slate-400 font-semibold">
+      Zeile (links) {gameMode === 'mult' ? '×' : '+'} Spalte (oben)
+    </span>
+  </div>
+
+  <!-- Große 11x11 Matrix -->
+  <div class="bg-white dark:bg-[#111827] rounded-3xl p-3 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-x-auto">
+    <div class="min-w-[340px] max-w-xl mx-auto">
+      <div class="grid grid-cols-11 gap-1 sm:gap-1.5 p-1.5 sm:p-2 bg-slate-100 dark:bg-slate-900 rounded-2xl select-none">
+        
+        <!-- Obere linke Ecke -->
+        <div class="aspect-square rounded-xl bg-indigo-600 dark:bg-indigo-700 text-white flex items-center justify-center text-xs sm:text-base font-black shadow-xs">
+          {gameMode === 'mult' ? '×' : '+'}
+        </div>
+
+        <!-- Spalten-Header oben (b = 1..10) -->
+        {#each numbers as b}
+          {@const isColActive = activeB === b}
+          <div class="aspect-square rounded-xl flex items-center justify-center text-xs sm:text-sm font-black transition-colors {
+            isColActive
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-slate-200/90 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
+          }">
+            {b}
+          </div>
+        {/each}
+
+        <!-- Zeilen (a = 1..10) -->
+        {#each numbers as a}
+          <!-- Zeilen-Header links (a) -->
+          {@const isRowActive = activeA === a}
+          <div class="aspect-square rounded-xl flex items-center justify-center text-xs sm:text-sm font-black transition-colors {
+            isRowActive
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-slate-200/90 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
+          }">
+            {a}
+          </div>
+
+          <!-- 10 Datenzellen für Zeile a -->
+          {#each numbers as b}
             {@const st = getStatus(a, b)}
             {@const f = getFact(a, b)}
+            {@const isSelected = selectedFact?.a === a && selectedFact?.b === b}
+            {@const isHL = isHighlighted(a, b)}
+            {@const isInCrosshair = activeA === a || activeB === b}
+
             <button
               type="button"
               onclick={() => {
                 if (f) selectedFact = f;
               }}
-              class="aspect-square rounded-lg flex items-center justify-center text-xs font-black transition-transform hover:scale-115 hover:z-10 cursor-pointer border-none {
+              onmouseenter={() => (hoveredCell = { a, b })}
+              onmouseleave={() => (hoveredCell = null)}
+              class="aspect-square rounded-xl flex items-center justify-center text-xs sm:text-sm font-black transition-transform hover:scale-115 hover:z-20 cursor-pointer border-none {
+                isSelected
+                  ? 'ring-3 ring-indigo-500 scale-110 z-10'
+                  : isHL
+                  ? 'ring-2 ring-amber-400 z-10'
+                  : ''
+              } {
                 st === 'mastered'
                   ? 'bg-emerald-500 text-white shadow-xs'
                   : st === 'wrong'
                   ? 'bg-rose-500 text-white animate-pulse'
                   : st === 'learning'
                   ? 'bg-amber-400 text-amber-950'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  : isInCrosshair
+                  ? 'bg-indigo-100/80 dark:bg-slate-700 text-indigo-900 dark:text-indigo-200'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
               }"
               title="{a} {gameMode === 'mult' ? '×' : '+'} {b} = {f?.c}"
+              aria-label="{a} {gameMode === 'mult' ? 'mal' : 'plus'} {b} ist {f?.c}"
             >
               {f ? f.c : ''}
             </button>
           {/each}
-        </div>
-      {/each}
+        {/each}
+      </div>
     </div>
   </div>
 </div>
