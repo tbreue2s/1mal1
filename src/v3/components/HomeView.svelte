@@ -135,23 +135,13 @@
 
     <!-- Stats & Quick Actions -->
     <div class="flex items-center gap-1.5 text-xs font-bold">
-      <!-- Streak -->
-      <div
-        class="flex items-center gap-1 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-2 py-1 rounded-xl border border-amber-200/60 dark:border-amber-800/30"
-        title="Streak: {stats.streakDays} Tage"
-      >
-        <span>🔥 {stats.streakDays}</span>
-        {#if dueCount > 0}
-          <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
-        {:else}
-          <span class="text-[10px] text-emerald-500 font-black">✓</span>
-        {/if}
-      </div>
-
       <!-- Sterne -->
-      <div class="flex items-center gap-1 text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/60 px-2 py-1 rounded-xl border border-slate-200/60 dark:border-slate-700/40">
+      <div
+        class="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1.5 rounded-xl border border-amber-200/60 dark:border-amber-800/40 shadow-2xs"
+        title="{stats.stars} gesammelte Sterne"
+      >
         <span class="text-amber-500 text-xs">⭐</span>
-        <span>{stats.stars}</span>
+        <span class="font-extrabold">{stats.stars}</span>
       </div>
 
       <!-- Sound Toggle -->

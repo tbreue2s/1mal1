@@ -277,7 +277,7 @@
                 {/if}
               </div>
               <div class="text-[10px] text-slate-400 font-semibold">
-                ⭐ {prof.multStats.stars + prof.plusMinusStats.stars} Sterne · 🔥 {prof.activeGameMode === 'mult' ? prof.multStats.streakDays : prof.plusMinusStats.streakDays} Tage
+                ⭐ {prof.multStats.stars + prof.plusMinusStats.stars} gesammelte Sterne
               </div>
             </div>
           </button>
