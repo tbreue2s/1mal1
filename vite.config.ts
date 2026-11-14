@@ -6,7 +6,7 @@ import { resolve } from 'path'
 export default defineConfig({
   base: './',
   server: {
-    port: 5180,
+    port: 5173,
     host: true,
   },
   build: {
