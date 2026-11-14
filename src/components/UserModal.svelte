@@ -732,20 +732,18 @@
     </button>
 
     <div class="text-center pt-0.5 space-y-0.5">
-      {#if isDevelop}
-        <div>
-          <a
-            href="../"
-            class="text-[11px] text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium hover:underline inline-block"
-          >
-            ‹ Zurück zur Produktiv-Version
-          </a>
-        </div>
-      {/if}
       <div>
         <a
-          href={isDevelop ? "../v1/" : "./v1/"}
-          class="text-[11px] text-slate-400 hover:text-slate-500 dark:text-slate-500 font-medium hover:underline inline-block"
+          href="../"
+          class="text-[11px] text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 font-bold hover:underline inline-block"
+        >
+          ‹ Zur neuen Hauptversion (ZahlenBlitz 3.0) wechseln
+        </a>
+      </div>
+      <div>
+        <a
+          href="../v1/"
+          class="text-[10px] text-slate-400 hover:text-slate-500 dark:text-slate-500 font-medium hover:underline inline-block"
         >
           Zur klassischen Version (v1) wechseln ›
         </a>

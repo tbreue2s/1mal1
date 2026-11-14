@@ -14,6 +14,7 @@ export default defineConfig({
       input: {
         main: resolve(import.meta.dirname, 'index.html'),
         v1: resolve(import.meta.dirname, 'v1/index.html'),
+        v2: resolve(import.meta.dirname, 'v2/index.html'),
         v3: resolve(import.meta.dirname, 'v3/index.html'),
         develop: resolve(import.meta.dirname, 'develop/index.html')
       }

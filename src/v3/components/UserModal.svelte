@@ -277,5 +277,25 @@
         onchange={handleFileSelect}
       />
     </div>
+
+    <!-- 5. WECHSEL ZU ANDEREN VERSIONEN -->
+    <div class="text-center pt-1 border-t border-slate-100 dark:border-slate-800 space-y-1">
+      <div>
+        <a
+          href={typeof window !== 'undefined' && window.location.pathname.includes('/v3') ? '../v2/' : './v2/'}
+          class="text-[11px] text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 font-bold hover:underline inline-block"
+        >
+          ‹ Zur vorherigen Version (v2) wechseln
+        </a>
+      </div>
+      <div>
+        <a
+          href={typeof window !== 'undefined' && window.location.pathname.includes('/v3') ? '../v1/' : './v1/'}
+          class="text-[10px] text-slate-400 hover:text-slate-500 font-medium hover:underline inline-block"
+        >
+          Zur klassischen Version (v1) wechseln ›
+        </a>
+      </div>
+    </div>
   </div>
 </div>

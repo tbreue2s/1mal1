@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#4F46E5" />
     <meta
       name="description"
-      content="ZahlenBlitz – Kindgerechte Mathe-Lern-App für das kleine 1×1 und Zahlen-Held mit Spaced Repetition"
+      content="ZahlenBlitz 3.0 – Didaktisch fundierte Mathe-Lern-App für das kleine 1×1 und Zahlen-Held mit Faktenfamilien und Spaced Repetition"
     />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -17,7 +17,7 @@
     <link rel="icon" type="image/png" href="./pwa/penguin-192.png" />
     <link rel="apple-touch-icon" href="./pwa/penguin-180.png" />
     <link rel="manifest" href="./manifest-penguin.webmanifest" />
-    <title>ZahlenBlitz – 1×1 &amp; Zahlen-Held</title>
+    <title>ZahlenBlitz 3.0 – 1×1 &amp; Zahlen-Held</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -27,12 +27,12 @@
     <script>
       (function() {
         try {
-          var mode = localStorage.getItem('v2_theme_preference') || 'system';
+          var mode = localStorage.getItem('v3_theme_preference') || 'system';
           var isDark = mode === 'dark' || (mode === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
           if (isDark) {
             document.documentElement.classList.add('dark');
           }
-          var savedLogo = localStorage.getItem('einmaleins_logo_v1');
+          var savedLogo = localStorage.getItem('v3_logo_variant') || localStorage.getItem('einmaleins_logo_v1');
           var validLogos = ['penguin', 'otter', 'owl', 'rocket', 'fox'];
           if (savedLogo && validLogos.indexOf(savedLogo) !== -1) {
             var iconEl = document.querySelector('link[rel="icon"]');
@@ -48,6 +48,6 @@
   </head>
   <body>
     <div id="app"></div>
-    <script type="module" src="./src/main.ts"></script>
+    <script type="module" src="./src/v3/main.ts"></script>
   </body>
 </html>
